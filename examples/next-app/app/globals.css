@@ -1,0 +1,63 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #fff;
+  color: #16181d;
+}
+
+@media (prefers-color-scheme: dark) {
+  html, body { background: #0f1115; color: #e8eaee; }
+}
+
+.shell { display: flex; flex-direction: column; height: 100vh; }
+
+.shell-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; border-bottom: 1px solid #dfe3e9;
+}
+
+.shell-header h1 { font-size: 16px; margin: 0; letter-spacing: -0.01em; }
+
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; }
+.pill-online { background: #e6f4ea; color: #12633a; }
+.pill-offline { background: #fdecea; color: #8a1c13; }
+
+.hint { font-size: 12px; color: #646b7a; }
+
+.update {
+  margin-left: auto; font: inherit; font-size: 13px;
+  padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #2b6cb0; background: #2b6cb0; color: #fff;
+}
+
+.shell-body { display: flex; flex: 1; min-height: 0; }
+
+.sidebar {
+  width: 280px; flex: 0 0 auto; padding: 16px;
+  border-right: 1px solid #dfe3e9; overflow: auto;
+  display: flex; flex-direction: column; gap: 22px;
+}
+
+.sidebar h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: #646b7a; margin: 0 0 6px; }
+.sidebar p { margin: 0 0 8px; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.sidebar button {
+  font: inherit; font-size: 13px; text-align: left; width: 100%;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #dfe3e9; background: transparent; color: inherit;
+}
+
+.sidebar button:hover { border-color: #2b6cb0; }
+
+.viewer { flex: 1; min-width: 0; min-height: 0; }
+.lookglass { height: 100%; }
+.empty { color: #646b7a; }
+
+@media (prefers-color-scheme: dark) {
+  .shell-header, .sidebar { border-color: #2c313a; }
+  .sidebar button { border-color: #2c313a; }
+}

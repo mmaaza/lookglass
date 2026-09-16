@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+out/
+*.tsbuildinfo
+.DS_Store
+coverage/
+test-results/
+playwright-report/
+examples/next-app/public/lookglass/
+examples/next-app/public/sw.js

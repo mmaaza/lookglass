@@ -1,0 +1,281 @@
+/**
+ * Opt-in stylesheet for lookglass chrome.
+ *
+ * Import it, or don't — the components carry no class names of their own and
+ * are styled entirely through `data-lookglass-*` attributes. Override any
+ * token below on a wrapper element, or skip this file and write your own
+ * rules against the same attributes.
+ */
+
+[data-lookglass-root] {
+  --lg-bg: #ffffff;
+  --lg-surface: #f6f7f9;
+  --lg-fg: #16181d;
+  --lg-muted: #646b7a;
+  --lg-border: #dfe3e9;
+  --lg-accent: #2b6cb0;
+  --lg-accent-fg: #ffffff;
+  --lg-match: #ffe68a;
+  --lg-match-active: #ffb224;
+  --lg-warning-bg: #fff6e5;
+  --lg-warning-fg: #7a4b00;
+  --lg-radius: 6px;
+  --lg-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --lg-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--lg-bg);
+  color: var(--lg-fg);
+  font-family: var(--lg-font);
+  font-size: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-lookglass-root] {
+    --lg-bg: #14161a;
+    --lg-surface: #1b1e24;
+    --lg-fg: #e8eaee;
+    --lg-muted: #97a0b0;
+    --lg-border: #2c313a;
+    --lg-accent: #5a9be0;
+    --lg-accent-fg: #0b0d10;
+    --lg-match: #6b5a17;
+    --lg-match-active: #a8811d;
+    --lg-warning-bg: #2e2413;
+    --lg-warning-fg: #f0c987;
+  }
+}
+
+/* ------------------------------- toolbar ------------------------------- */
+
+[data-lookglass-toolbar] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--lg-border);
+  background: var(--lg-surface);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+[data-lookglass-group] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+[data-lookglass-spacer] {
+  flex: 1 1 auto;
+}
+
+[data-lookglass-title] {
+  font-weight: 600;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-lookglass-toolbar] button,
+[data-lookglass-toolbar] select {
+  font: inherit;
+  color: inherit;
+  background: var(--lg-bg);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius);
+  padding: 3px 8px;
+  cursor: pointer;
+  min-height: 28px;
+}
+
+[data-lookglass-toolbar] button:hover:not(:disabled) {
+  border-color: var(--lg-accent);
+}
+
+[data-lookglass-toolbar] button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+[data-lookglass-toolbar] input {
+  font: inherit;
+  color: inherit;
+  background: var(--lg-bg);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius);
+  padding: 3px 8px;
+  min-height: 28px;
+}
+
+[data-lookglass-page-input] {
+  width: 6ch;
+  text-align: right;
+}
+
+[data-lookglass-page-total],
+[data-lookglass-search-status] {
+  color: var(--lg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visible focus is not optional; the viewer is keyboard-driven. */
+[data-lookglass-root] :focus-visible {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: 1px;
+}
+
+/* ------------------------------- content ------------------------------- */
+
+[data-lookglass-content] {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.lookglass-surface {
+  height: 100%;
+}
+
+[data-lookglass-notice] {
+  padding: 6px 10px;
+  background: var(--lg-warning-bg);
+  color: var(--lg-warning-fg);
+  border-bottom: 1px solid var(--lg-border);
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+[data-lookglass-statusbar] {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-top: 1px solid var(--lg-border);
+  background: var(--lg-surface);
+  color: var(--lg-muted);
+  font-size: 12px;
+}
+
+/* --------------------------- loading / error --------------------------- */
+
+[data-lookglass-loading],
+[data-lookglass-error],
+[data-lookglass-empty] {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--lg-muted);
+  padding: 24px;
+  text-align: center;
+}
+
+[data-lookglass-progress] {
+  width: min(320px, 70%);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--lg-border);
+  overflow: hidden;
+}
+
+[data-lookglass-progress-bar] {
+  height: 100%;
+  background: var(--lg-accent);
+  transition: width 120ms linear;
+}
+
+/* Indeterminate: no width set means we do not know the total yet. */
+[data-lookglass-progress-bar]:not([style*="width"]) {
+  width: 35%;
+  animation: lookglass-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes lookglass-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+
+[data-lookglass-error-message] {
+  color: var(--lg-fg);
+  max-width: 48ch;
+  margin: 0;
+}
+
+[data-lookglass-error] button {
+  font: inherit;
+  padding: 6px 14px;
+  border-radius: var(--lg-radius);
+  border: 1px solid var(--lg-accent);
+  background: var(--lg-accent);
+  color: var(--lg-accent-fg);
+  cursor: pointer;
+}
+
+/* ------------------------------ surfaces ------------------------------ */
+
+[data-lookglass-surface="text"] {
+  font-family: var(--lg-mono);
+  background: var(--lg-bg);
+  line-height: 20px;
+}
+
+[data-lookglass-gutter] {
+  color: var(--lg-muted);
+  text-align: right;
+  padding-right: 12px;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  position: sticky;
+  left: 0;
+  background: var(--lg-bg);
+}
+
+[data-lookglass-line]:hover {
+  background: var(--lg-surface);
+}
+
+[data-lookglass-line][data-lookglass-active] {
+  background: color-mix(in srgb, var(--lg-accent) 14%, transparent);
+}
+
+[data-lookglass-match] {
+  background: var(--lg-match);
+  color: inherit;
+  border-radius: 2px;
+}
+
+[data-lookglass-line][data-lookglass-active] [data-lookglass-match] {
+  background: var(--lg-match-active);
+}
+
+/* Unloaded lines render a placeholder rather than collapsing to zero height,
+   so the scrollbar stays stable while blocks stream in. */
+[data-lookglass-skeleton] {
+  display: inline-block;
+  width: min(60%, 40ch);
+  height: 0.85em;
+  border-radius: 3px;
+  background: var(--lg-border);
+  opacity: 0.5;
+}
+
+[data-lookglass-surface="image"] {
+  background:
+    repeating-conic-gradient(var(--lg-surface) 0% 25%, var(--lg-bg) 0% 50%) 50% / 20px 20px;
+}
+
+[data-lookglass-surface="image"]:active {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-lookglass-progress-bar] {
+    animation: none;
+    transition: none;
+  }
+}
