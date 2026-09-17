@@ -2,7 +2,7 @@
 
 All-in-one, offline-capable file viewer for React and Next.js — built for files that are too big for the naive approach.
 
-> **Status: M1.** Text, images, SVG, JSON, JSON Lines, XML and Markdown are supported. PDF, spreadsheets, DOCX and PPTX land in M2–M5 — see [Roadmap](#roadmap).
+> **Status: M2.** PDF, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. Spreadsheets, DOCX and PPTX land in M3–M5 — see [Roadmap](#roadmap).
 
 ```bash
 npm install lookglass
@@ -48,9 +48,15 @@ The app works with no network, which rules out every CDN fallback the usual libr
 That split is the design. Caching a document to OPFS makes it *both* offline-available and no longer memory-bound, because a cached file is still `slice()`-able off disk — the same access pattern the network path uses.
 
 ```tsx
-// First open streams the bytes to OPFS; later opens work with no network.
-<FileViewer source={{ url: '/api/files/report.pdf' }} offline={{ cache: true }} />
+// Opens immediately over HTTP ranges; the file is copied to OPFS in the
+// background, and later opens work with no network.
+<FileViewer
+  source={{ url: '/api/files/report.pdf' }}
+  offline={{ cache: true, onCached: () => markAvailableOffline() }}
+/>
 ```
+
+Caching runs **in the background by default**. Copying the whole file before opening it would mean a 1 GB PDF downloads completely before page 1 appears — the exact cost range loading exists to avoid. Pass `mode: 'before-open'` if you need the offline copy guaranteed before anything is shown. A background copy is cancelled when the document is closed, and a partial copy is discarded rather than served.
 
 Call `warmCache()` once on an online visit, ideally from an idle callback:
 
@@ -126,6 +132,7 @@ Or skip the stylesheet entirely and write your own rules against the same attrib
 | XML | Same offset table as JSON, from a streaming scanner | Entities are never expanded (see below) |
 | Markdown | Parsed and sanitised in a worker, emitted per block, block-virtualised | GFM tables, task lists, raw HTML (sanitised). 32 MB cap |
 | SVG | Sanitised with DOMPurify, rendered inline | Scripts, handlers, `foreignObject` and remote references removed |
+| PDF | PDF.js in a per-document worker, fed byte ranges from the source; virtualised pages | Search, text selection, outline, links, rotation, passwords. CJK via bundled CMaps |
 | PNG, JPEG, WebP, GIF, AVIF | `createImageBitmap`, downscaled past the Safari canvas limit | EXIF orientation honoured; GIFs stay animated |
 
 ### Why JSON is never `JSON.parse`d
@@ -133,6 +140,18 @@ Or skip the stylesheet entirely and write your own rules against the same attrib
 `JSON.parse` on a 300 MB document allocates an object graph several times the file size and blocks the thread for tens of seconds before it succeeds or throws. lookglass instead scans the bytes once into parallel typed arrays of offsets — every structural character in JSON is ASCII, and UTF-8 continuation bytes always have the high bit set, so a byte-level state machine finds every token without decoding anything. Keys and values are decoded only for the rows on screen, and each read is clamped, so a single 50 MB string costs the same to display as a short one.
 
 The scanner is verified by round-tripping every test document back through the offset table and comparing against `JSON.parse`, including values that straddle the 1 MiB chunk boundary.
+
+### PDF
+
+Every read goes through the same `Source` as every other format, via a PDF.js range transport, with PDF.js's own background fetching turned off. A local `File`, an HTTP URL and an OPFS copy all load the same way, and only the byte ranges the visible pages need are read: in the test suite, reaching page 1,150 of an 11 MB, 1,200-page document downloads under 15% of the file.
+
+Pages are rasterised to `ImageBitmap`s held in the shared byte budget, two at a time, with rendering cancelled for pages scrolled past. Zooming shows the nearest cached scale stretched until the sharp render lands, instead of blank pages. The text layer (selection and search highlighting) is added only once a page has settled.
+
+Passwords: `<FileViewer>` shows a prompt and handles wrong passwords and cancellation. With the headless hook, read `passwordPrompt` from `useFileViewer()`, or pass your own `options.requestPassword`.
+
+Safety: documents never run embedded JavaScript (the QuickJS sandbox is not shipped), XFA forms are off, and only `http`, `https` and `mailto` links are followed.
+
+Print is deliberately not offered: most pages of a virtualised document are unmounted, so browser print would produce blank sheets. Download the original instead.
 
 ### Syntax highlighting
 
@@ -179,6 +198,8 @@ import { setWorkerResolver } from 'lookglass';
 setWorkerResolver((name, fallback) => myWorkerFactory(name) ?? fallback());
 ```
 
+**PDF.js under Next.js.** PDF.js starts its worker from a static block guarded by `typeof window === "undefined"`. Next.js compiles client code — worker chunks included — with `typeof window` replaced by `"object"`, so the guard becomes `false`, the minifier deletes the start-up code, and the document hangs forever with no error. lookglass's build strips that guarded block from its bundled PDF.js worker and starts the handler explicitly, so it behaves the same under any bundler. (The build fails loudly if a PDF.js upgrade changes the code being stripped.) It also waits for the worker's `ready` message before handing it to PDF.js, because messages posted while a 1 MB module worker is still evaluating are lost.
+
 The build preserves `"use client"` per-module via `preserveModules` plus a custom directive plugin. The stock `rollup-plugin-preserve-directives` does not work here: esbuild strips directives during `transform`, before that plugin looks, and the result builds cleanly but turns every client component into a server component at runtime.
 
 ## Roadmap
@@ -187,7 +208,7 @@ The build preserves `"use client"` per-module via `preserveModules` plus a custo
 | --- | --- | --- |
 | M0 | Core: sources, detection, registry, workers, memory, chrome, server, SW | ✅ Done |
 | M1 | JSON, JSON Lines, XML, Markdown, SVG; syntax highlighting for text | ✅ Done |
-| M2 | PDF — range requests, virtualised pages, render cancellation | |
+| M2 | PDF — range requests, virtualised pages, render cancellation, search, outline, passwords | ✅ Done |
 | M3 | CSV (streaming) + XLSX (SheetJS, vendored) | |
 | M4 | DOCX | |
 | M5a | PPTX tiers 1–2: zip index, slide/layout/master inheritance, theme | |

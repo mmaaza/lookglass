@@ -21,6 +21,20 @@ export interface OfflineOptions {
   version?: string;
   /** Skip caching above this size. Defaults to 2 GB. */
   maxBytes?: number;
+  /**
+   * When to copy the document into OPFS.
+   *
+   * `'background'` (default) opens the document straight away over HTTP
+   * ranges and caches it in parallel. `'before-open'` copies the whole file
+   * first, which guarantees the offline copy exists before anything is shown —
+   * but for a 1 GB PDF it also means downloading 1 GB before page 1 appears,
+   * which is exactly what range loading exists to avoid.
+   */
+  mode?: 'background' | 'before-open';
+  /** Called once a background copy has been fully written to OPFS. */
+  onCached?: () => void;
+  /** Called when background caching fails. Viewing is never affected. */
+  onCacheError?: (error: ViewerError) => void;
 }
 
 export interface OpenDocumentOptions {
@@ -45,6 +59,34 @@ export interface OpenDocumentResult {
 }
 
 let docCounter = 0;
+
+/**
+ * Copy a remote document into OPFS without blocking the view.
+ *
+ * Uses its own source instance so its long streaming read shares no
+ * in-flight state with the renderer's range requests. It is tied to the load
+ * token: closing the document stops the copy rather than leaving a gigabyte
+ * download running for a file the user has moved away from, and a partial
+ * copy is discarded, so the next open simply starts again.
+ */
+function cacheInBackground(input: SourceInput, key: string, offline: OfflineOptions, token: LoadToken): void {
+  const background = resolveSource(input);
+  token.onDispose(() => background.dispose());
+
+  void (async () => {
+    try {
+      // Probe first: the size is what the quota and size-limit checks need.
+      await background.slice(0, 1, token.signal);
+      await persistToOpfs(background, { key, version: offline.version, token, maxBytes: offline.maxBytes });
+      if (!token.aborted) offline.onCached?.();
+    } catch (err) {
+      if (isAbort(err) || token.aborted) return;
+      const error = ViewerError.from(err);
+      console.warn('[lookglass] background offline caching failed', error);
+      offline.onCacheError?.(error);
+    }
+  })();
+}
 
 /**
  * Full open pipeline: resolve bytes -> detect -> load renderer chunk -> open.
@@ -76,6 +118,8 @@ export async function openDocument(opts: OpenDocumentOptions): Promise<OpenDocum
       if (cached) {
         source = cached;
         fromCache = true;
+      } else if ((opts.offline.mode ?? 'background') === 'background') {
+        cacheInBackground(opts.source, key, opts.offline, token);
       } else {
         report({ phase: 'persisting', message: 'Saving for offline use' });
         try {

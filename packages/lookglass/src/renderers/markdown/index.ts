@@ -80,6 +80,7 @@ export const markdownRenderer: RendererFactory = {
       meta,
       controller,
       Surface,
+      outline: () => Promise.resolve(result.outline),
       dispose: () => {
         controller.dispose();
         void client.call('close', undefined as never).catch(() => undefined);

@@ -54,11 +54,11 @@ test.describe('lookglass playground', () => {
 
   test('reports an unsupported format instead of failing silently', async ({ page }) => {
     await warmAndWait(page);
-    await page.getByRole('button', { name: /report\.pdf/ }).click();
-    // The PDF renderer is not registered until M2; the registry must say so
-    // clearly rather than leaving a spinner on screen forever.
+    await page.getByRole('button', { name: /archive\.zip/ }).click();
+    // No renderer handles ZIP archives; the viewer must say so clearly rather
+    // than leaving a spinner on screen forever.
     await expect(page.locator('[data-lookglass-error]')).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('[data-lookglass-error-message]')).toContainText(/pdf/i);
+    await expect(page.locator('[data-lookglass-error-message]')).toContainText(/archive\.zip/i);
   });
 
   test('opens a previously viewed server document while offline', async ({ page, context }) => {
@@ -68,6 +68,9 @@ test.describe('lookglass playground', () => {
     await page.getByRole('button', { name: /notes\.txt/ }).click();
     await expect(page.locator('[data-lookglass-surface="text"]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('[data-lookglass-statusbar]')).toContainText('lines');
+    // Caching runs in the background; going offline before it finishes would
+    // test nothing.
+    await expect(page.getByTestId('cached-note')).toContainText('notes.txt', { timeout: 30_000 });
 
     await context.setOffline(true);
     await expect(page.locator('.pill-offline')).toBeVisible();

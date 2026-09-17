@@ -3,7 +3,7 @@ import type { ScopedMemory } from './memory.js';
 import type { WorkerPool } from './worker-pool.js';
 import type { LoadToken } from './cancel.js';
 import type { Source } from '../source/types.js';
-import type { DetectedFormat, DocController, DocMeta, FormatKind, LoadProgress } from '../types.js';
+import type { DetectedFormat, DocController, DocMeta, FormatKind, LoadProgress, OutlineNode } from '../types.js';
 
 /**
  * The single contract every format implements.
@@ -44,7 +44,10 @@ export interface RendererOptions {
   /** Cap on device pixel ratio when rastering. Above ~2 the cost is wasted. */
   maxDevicePixelRatio: number;
   locale: string;
-  /** Called when a document needs a password. Return null to cancel. */
+  /**
+   * Called when a document needs a password. `attempt` starts at 1; any later
+   * attempt means the previous password was wrong. Resolve `null` to cancel.
+   */
   requestPassword?: (attempt: number) => Promise<string | null>;
   /** Renderer-specific escape hatch, keyed by renderer id. */
   rendererOptions?: Record<string, unknown>;
@@ -65,6 +68,8 @@ export interface OpenedDoc {
    * own state, so it takes no props beyond presentation.
    */
   Surface: ComponentType<SurfaceProps>;
+  /** Document outline, when `capabilities.outline` is set. */
+  outline?(): Promise<OutlineNode[]>;
   dispose(): void | Promise<void>;
 }
 

@@ -63,6 +63,10 @@
     "./svg": {
       "types": "./dist/renderers/svg/index.d.ts",
       "import": "./dist/renderers/svg/index.js"
+    },
+    "./pdf": {
+      "types": "./dist/renderers/pdf/index.d.ts",
+      "import": "./dist/renderers/pdf/index.js"
     }
   },
   "scripts": {
@@ -84,6 +88,7 @@
     "@tanstack/react-virtual": "^3.11.2",
     "dompurify": "^3.4.15",
     "mdast-util-to-string": "^4.0.0",
+    "pdfjs-dist": "^5.7.284",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "rehype-stringify": "^10.0.1",
@@ -118,9 +123,12 @@
       "limit": "9 kB"
     },
     {
-      "name": "react chrome + every renderer shell (size-limit inlines lazy imports: worst case)",
+      "name": "react chrome + every renderer shell, excluding the PDF.js engine (worst case: lazy imports inlined)",
       "path": "dist/react/index.js",
-      "limit": "40 kB"
+      "limit": "48 kB",
+      "ignore": [
+        "pdfjs-dist"
+      ]
     },
     {
       "name": "image renderer",
@@ -161,6 +169,16 @@
       "name": "markdown renderer shell",
       "path": "dist/renderers/markdown/index.js",
       "limit": "11 kB"
+    },
+    {
+      "name": "pdf renderer, incl. pdf.js main-thread library (lazy)",
+      "path": "dist/renderers/pdf/index.js",
+      "limit": "130 kB"
+    },
+    {
+      "name": "pdf worker (lazy, off main thread)",
+      "path": "dist/workers/pdf.worker.js",
+      "limit": "400 kB"
     }
   ],
   "keywords": [

@@ -9,6 +9,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writePdfFixtures } from './pdf-fixtures.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'files');
 await mkdir(root, { recursive: true });
@@ -180,8 +181,8 @@ await writeFile(
   ),
 );
 
-// A real PDF header so detection identifies it and the missing-renderer path
-// is exercised honestly until M2 lands.
-await writeFile(join(root, 'report.pdf'), '%PDF-1.7\n% placeholder until the PDF renderer lands\n');
+/* ------------------------- PDF and unsupported ------------------------ */
+
+await writePdfFixtures(root);
 
 console.log(`fixtures written to ${root}`);

@@ -23,6 +23,12 @@ export function registerDefaultRenderers(): void {
   });
 
   registerRenderer({
+    id: 'lookglass/pdf',
+    kinds: ['pdf'],
+    load: async () => (await import('./pdf/index.js')).pdfRenderer,
+  });
+
+  registerRenderer({
     id: 'lookglass/json',
     kinds: ['json', 'jsonl'],
     load: async () => (await import('./json/index.js')).jsonRenderer,

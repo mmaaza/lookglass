@@ -33,6 +33,7 @@ export class BaseController implements DocController {
   private state: DocState;
   private readonly listeners = new Set<(state: DocState) => void>();
   private searchAbort: AbortController | undefined;
+  private syncedPage = 0;
   private readonly opts: BaseControllerOptions;
 
   constructor(opts: BaseControllerOptions) {
@@ -70,6 +71,9 @@ export class BaseController implements DocController {
   goToPage(page: number): void {
     if (!this.opts.capabilities.pages) return;
     const clamped = Math.max(1, Math.min(Math.round(page), this.state.pageCount));
+    // Explicit navigation always moves the view, even back to a page that was
+    // last reached by scrolling.
+    this.syncedPage = 0;
     if (clamped !== this.state.page) this.patch({ page: clamped });
   }
 
@@ -110,6 +114,33 @@ export class BaseController implements DocController {
 
   rotateCw(): void {
     this.setRotation(this.state.viewport.rotation + 90);
+  }
+
+  /**
+   * Record the page the user has scrolled to, without asking the surface to
+   * scroll there. Surfaces call this from scroll handlers; `goToPage` is for
+   * navigation that should move the view.
+   */
+  syncPage(page: number): void {
+    const clamped = Math.max(1, Math.min(Math.round(page), this.state.pageCount));
+    if (clamped !== this.state.page) {
+      this.syncedPage = clamped;
+      this.patch({ page: clamped });
+    }
+  }
+
+  /** True when the current page came from `syncPage`, i.e. from scrolling. */
+  pageFromScroll(): boolean {
+    return this.syncedPage === this.state.page;
+  }
+
+  /**
+   * Report the zoom a fit mode actually produced, so the toolbar shows a real
+   * percentage. Unlike `setZoom` this keeps the fit mode.
+   */
+  setEffectiveZoom(zoom: number): void {
+    if (Math.abs(zoom - this.state.viewport.zoom) < 0.001) return;
+    this.patch({ viewport: { ...this.state.viewport, zoom } });
   }
 
   setSheet(index: number): void {

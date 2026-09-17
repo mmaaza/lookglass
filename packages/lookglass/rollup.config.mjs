@@ -38,7 +38,7 @@ const external = [
  *    import time), which crashes the worker before it can answer a single
  *    call. Bundling here makes worker behaviour independent of the host app.
  */
-const WORKERS = ['text', 'json', 'xml', 'markdown'];
+const WORKERS = ['text', 'json', 'xml', 'markdown', 'pdf'];
 export default [
   {
     input: {
@@ -49,6 +49,7 @@ export default [
       'sw/index': 'src/sw/index.ts',
       'renderers/defaults': 'src/renderers/defaults.ts',
       'renderers/text/index': 'src/renderers/text/index.ts',
+      'renderers/pdf/index': 'src/renderers/pdf/index.ts',
       'renderers/json/index': 'src/renderers/json/index.ts',
       'renderers/xml/index': 'src/renderers/xml/index.ts',
       'renderers/markdown/index': 'src/renderers/markdown/index.ts',
@@ -100,6 +101,7 @@ export default [
       chunkFileNames: `chunks/${name}-[name]-[hash].js`,
     },
     plugins: [
+      name === 'pdf' ? disablePdfjsAutoStart() : undefined,
       resolve({
         browser: false,
         exportConditions: ['worker', 'import', 'module', 'default'],
@@ -111,6 +113,33 @@ export default [
     ],
   })),
 ];
+
+/**
+ * Remove PDF.js's self-starting worker block.
+ *
+ * It is guarded by an environment check on `typeof window`, which Next.js
+ * rewrites in client bundles, so whether it runs depends on the host bundler.
+ * `src/workers/pdf.worker.ts` starts the handler explicitly instead. The
+ * build fails if the pattern is not found, so a PDF.js upgrade that changes
+ * this code cannot silently reintroduce a double start or no start at all.
+ */
+function disablePdfjsAutoStart() {
+  const guard =
+    /"undefined"==typeof window&&![\w$]+&&"undefined"!=typeof self&&"function"==typeof self\.postMessage&&"onmessage"in self/g;
+  return {
+    name: 'lookglass-disable-pdfjs-autostart',
+    transform(code, id) {
+      if (!/pdfjs-dist[\\/]build[\\/]pdf\.worker\.min\.mjs$/.test(id)) return null;
+      const matches = code.match(guard)?.length ?? 0;
+      if (matches !== 1) {
+        this.error(
+          `Expected exactly one PDF.js worker auto-start guard, found ${matches}. Re-check pdf.worker.ts against this pdfjs-dist version.`,
+        );
+      }
+      return { code: code.replace(guard, 'false'), map: null };
+    },
+  };
+}
 
 function copyCss() {
   return {

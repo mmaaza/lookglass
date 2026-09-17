@@ -1,6 +1,12 @@
 'use client';
 
-export { useFileViewer, type UseFileViewerOptions, type FileViewerResult, type ViewerStatus } from './use-file-viewer.js';
+export {
+  useFileViewer,
+  type UseFileViewerOptions,
+  type FileViewerResult,
+  type ViewerStatus,
+  type PasswordPrompt,
+} from './use-file-viewer.js';
 export { useDocState } from './use-doc-state.js';
 export { openDocument, type OpenDocumentOptions, type OpenDocumentResult, type OfflineOptions } from '../core/open.js';
 export { registerDefaultRenderers } from '../renderers/defaults.js';

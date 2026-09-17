@@ -16,7 +16,10 @@ const SERVER_FILES = [
   { label: 'diagram.svg (carries XSS payloads)', path: 'diagram.svg' },
   { label: 'notes.txt', path: 'notes.txt' },
   { label: 'logo.png', path: 'logo.png' },
-  { label: 'report.pdf (renderer lands in M2)', path: 'report.pdf' },
+  { label: 'big.pdf (1,200 pages, 11 MB)', path: 'big.pdf' },
+  { label: 'cjk.pdf (needs CMap assets)', path: 'cjk.pdf' },
+  { label: 'locked.pdf (password: lookglass)', path: 'locked.pdf' },
+  { label: 'archive.zip (unsupported)', path: 'archive.zip' },
 ];
 
 export function ViewerShell() {
@@ -25,6 +28,13 @@ export function ViewerShell() {
   const [online, setOnline] = useState(true);
   const [warm, setWarm] = useState<string>('');
   const [updateReady, setUpdateReady] = useState<(() => void) | null>(null);
+  const [cachedNote, setCachedNote] = useState('');
+  // `?offline=0` turns off OPFS caching, so range loading can be observed on
+  // its own without a background download running alongside it.
+  const [offlineEnabled, setOfflineEnabled] = useState(true);
+  useEffect(() => {
+    setOfflineEnabled(new URLSearchParams(window.location.search).get('offline') !== '0');
+  }, []);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -78,6 +88,7 @@ export function ViewerShell() {
   const onPickServer = useCallback((path: string, text: string) => {
     setSource({ url: `/api/files/${path}`, name: path });
     setLabel(text);
+    setCachedNote('');
   }, []);
 
   return (
@@ -86,6 +97,11 @@ export function ViewerShell() {
         <h1>lookglass</h1>
         <span className={online ? 'pill pill-online' : 'pill pill-offline'}>{online ? 'online' : 'offline'}</span>
         {warm ? <span className="hint">{warm}</span> : null}
+        {cachedNote ? (
+          <span className="hint" data-testid="cached-note">
+            {cachedNote}
+          </span>
+        ) : null}
         {updateReady ? (
           <button type="button" className="update" onClick={() => updateReady()}>
             New version — reload
@@ -127,7 +143,10 @@ export function ViewerShell() {
             source={source}
             // Remote documents are streamed to OPFS on first open; local files
             // are already local so this has no effect on them.
-            offline={{ cache: true }}
+            offline={{
+              cache: offlineEnabled,
+              onCached: () => setCachedNote(`saved offline: ${label}`),
+            }}
             className="lookglass"
             renderEmpty={() => <div className="empty">Pick a file to preview{label ? ` (${label})` : ''}</div>}
           />

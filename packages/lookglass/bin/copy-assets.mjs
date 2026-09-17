@@ -20,7 +20,7 @@
 
 import { cp, mkdir, writeFile, readdir, access } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -34,7 +34,17 @@ const log = args.quiet ? () => {} : (...parts) => console.log('[lookglass]', ...
 
 /** Package -> the directories inside it that must reach the browser. */
 const ASSET_SOURCES = [
-  { pkg: 'pdfjs-dist', dirs: ['cmaps', 'standard_fonts'], reason: 'PDF font and CJK support' },
+  {
+    pkg: 'pdfjs-dist',
+    // cmaps: CJK and other CID-keyed text. standard_fonts: PDFs that reference
+    // the base-14 fonts without embedding them. wasm: JPEG 2000 and JBIG2
+    // image decoders plus colour management. iccs: the default CMYK profile.
+    dirs: ['cmaps', 'standard_fonts', 'iccs', 'wasm'],
+    // The QuickJS sandbox only exists to run JavaScript embedded in PDFs. A
+    // viewer should never execute document scripts, so it is not shipped.
+    exclude: /^quickjs/,
+    reason: 'PDF fonts, CJK text and image decoders',
+  },
 ];
 
 async function main() {
@@ -48,7 +58,7 @@ async function main() {
   await mkdir(targetDir, { recursive: true });
   const copied = [];
 
-  for (const { pkg, dirs, reason } of ASSET_SOURCES) {
+  for (const { pkg, dirs, reason, exclude } of ASSET_SOURCES) {
     const root = resolvePackageDir(pkg);
     if (!root) {
       // Not an error: optional formats simply are not installed yet.
@@ -62,7 +72,10 @@ async function main() {
         continue;
       }
       const to = join(targetDir, dir);
-      await cp(from, to, { recursive: true });
+      await cp(from, to, {
+        recursive: true,
+        filter: (path) => !exclude || !exclude.test(basename(path) ?? ''),
+      });
       const files = await walk(to);
       copied.push(...files);
       log(`copied ${pkg}/${dir} -> ${relative(process.cwd(), to)} (${files.length} files)`);
@@ -83,6 +96,8 @@ async function main() {
   // Font files are what actually break rendering when missing, so precache
   // those and the cmaps; everything else can be fetched on demand.
   const assets = copied
+    // Licence texts ship alongside the assets but are never fetched at runtime.
+    .filter((file) => !basename(file).startsWith('LICENSE'))
     .map((file) => `${urlBase}/${relative(targetDir, file).split(sep).join('/')}`)
     .sort();
 

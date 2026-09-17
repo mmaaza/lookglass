@@ -73,6 +73,27 @@ async function writeIndex(dir: FileSystemDirectoryHandle, index: CacheIndex): Pr
   await writable.close();
 }
 
+/**
+ * Read-modify-write the index under a lock.
+ *
+ * With caching in the background, two documents can finish writing at the
+ * same moment. Unserialised, each reads the index, adds its entry and writes
+ * it back, and the second write silently drops the first document — which
+ * then looks cached on disk but is invisible to every later open.
+ */
+let indexChain: Promise<unknown> = Promise.resolve();
+
+function updateIndex<T>(dir: FileSystemDirectoryHandle, mutate: (index: CacheIndex) => T): Promise<T> {
+  const run = indexChain.then(async () => {
+    const index = await readIndex(dir);
+    const result = mutate(index);
+    await writeIndex(dir, index);
+    return result;
+  });
+  indexChain = run.catch(() => undefined);
+  return run;
+}
+
 /** Filesystem-safe name derived from the cache key. */
 function fileNameFor(key: string): string {
   let hash = 2166136261;
@@ -99,15 +120,17 @@ export async function opfsSource(key: string): Promise<Source | undefined> {
     handle = await dir.getFileHandle(fileNameFor(key));
   } catch {
     // Index and disk disagree; drop the stale row so we re-fetch cleanly.
-    delete index.documents[key];
-    await writeIndex(dir, index);
+    await updateIndex(dir, (current) => {
+      delete current.documents[key];
+    });
     return undefined;
   }
 
   const file = await handle.getFile();
-  meta.lastOpenedAt = Date.now();
-  index.documents[key] = meta;
-  void writeIndex(dir, index);
+  void updateIndex(dir, (current) => {
+    const entry = current.documents[key];
+    if (entry) entry.lastOpenedAt = Date.now();
+  }).catch(() => undefined);
 
   // `Blob.slice()` on a File handle reads lazily from disk — exactly the
   // property we want, so the blob adapter is reused verbatim here.
@@ -184,17 +207,17 @@ export async function persistToOpfs(source: Source, opts: PersistOptions = {}): 
     reader.releaseLock();
   }
 
-  const index = await readIndex(dir);
-  index.documents[key] = {
-    key,
-    name: source.name,
-    size: written,
-    mime: source.mimeHint,
-    cachedAt: Date.now(),
-    lastOpenedAt: Date.now(),
-    version: opts.version,
-  };
-  await writeIndex(dir, index);
+  await updateIndex(dir, (index) => {
+    index.documents[key] = {
+      key,
+      name: source.name,
+      size: written,
+      mime: source.mimeHint,
+      cachedAt: Date.now(),
+      lastOpenedAt: Date.now(),
+      version: opts.version,
+    };
+  });
 
   const cached = await opfsSource(key);
   if (!cached) throw new ViewerError('internal', 'Cached document could not be reopened.');
@@ -214,9 +237,9 @@ export async function listCached(): Promise<CachedDocument[]> {
 
 export async function evictCached(key: string): Promise<void> {
   const dir = await cacheDir();
-  const index = await readIndex(dir);
-  delete index.documents[key];
-  await writeIndex(dir, index);
+  await updateIndex(dir, (index) => {
+    delete index.documents[key];
+  });
   await dir.removeEntry(fileNameFor(key)).catch(() => undefined);
 }
 

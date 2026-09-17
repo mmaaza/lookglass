@@ -12,6 +12,9 @@ export interface ToolbarProps {
   pageLabel?: string;
   onDownload?: () => void;
   onPrint?: () => void;
+  /** Shown when the document has an outline. */
+  outlineOpen?: boolean;
+  onToggleOutline?: () => void;
 }
 
 /**
@@ -21,7 +24,16 @@ export interface ToolbarProps {
  * whole point of the controller contract — adding PPTX later lights up the
  * same buttons with no change here.
  */
-export function Toolbar({ controller, capabilities, title, pageLabel = 'Page', onDownload, onPrint }: ToolbarProps) {
+export function Toolbar({
+  controller,
+  capabilities,
+  title,
+  pageLabel = 'Page',
+  onDownload,
+  onPrint,
+  outlineOpen,
+  onToggleOutline,
+}: ToolbarProps) {
   const state = useDocState(controller);
   const [pageInput, setPageInput] = useState(String(state.page));
   const [query, setQuery] = useState('');
@@ -41,6 +53,17 @@ export function Toolbar({ controller, capabilities, title, pageLabel = 'Page', o
 
   return (
     <div data-lookglass-toolbar="" role="toolbar" aria-label="Document controls">
+      {capabilities.outline && onToggleOutline ? (
+        <button
+          type="button"
+          onClick={onToggleOutline}
+          aria-pressed={outlineOpen ?? false}
+          aria-label="Toggle outline"
+          data-lookglass-outline-toggle=""
+        >
+          ☰
+        </button>
+      ) : null}
       <span data-lookglass-title="" title={title}>
         {title}
       </span>

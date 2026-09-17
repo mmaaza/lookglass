@@ -22,6 +22,14 @@ export interface UseFileViewerOptions {
   onError?: (error: ViewerError) => void;
 }
 
+/** A document is waiting for a password. Present a form, then call one of these. */
+export interface PasswordPrompt {
+  /** 1 on the first request; higher means the last password was wrong. */
+  attempt: number;
+  submit(password: string): void;
+  cancel(): void;
+}
+
 export interface FileViewerResult {
   status: ViewerStatus;
   progress: LoadProgress;
@@ -31,6 +39,11 @@ export interface FileViewerResult {
   source: Source | undefined;
   /** True when the bytes came from the offline cache rather than the network. */
   fromCache: boolean;
+  /**
+   * Set while a document is waiting for a password, unless the consumer
+   * supplied its own `options.requestPassword`.
+   */
+  passwordPrompt: PasswordPrompt | undefined;
   reload: () => void;
   cancel: () => void;
 }
@@ -60,6 +73,9 @@ export function useFileViewer(opts: UseFileViewerOptions = {}): FileViewerResult
   const [attempt, setAttempt] = useState(0);
 
   const tokenRef = useRef<LoadToken | undefined>(undefined);
+  const [passwordPrompt, setPasswordPrompt] = useState<PasswordPrompt | undefined>();
+  /** Resolver for an open prompt, so teardown can release a waiting load. */
+  const pendingPassword = useRef<((password: string | null) => void) | undefined>(undefined);
 
   // Callbacks are read through a ref so a consumer passing inline arrows does
   // not restart the load on every render.
@@ -89,12 +105,29 @@ export function useFileViewer(opts: UseFileViewerOptions = {}): FileViewerResult
     setError(undefined);
     setProgress({ phase: 'resolving' });
 
+    // Built-in prompt, used only when the consumer did not provide one. The
+    // load waits on this promise; the chrome resolves it from a form.
+    const requestPassword =
+      options?.requestPassword ??
+      ((attempt: number) =>
+        new Promise<string | null>((resolve) => {
+          const settle = (password: string | null) => {
+            pendingPassword.current = undefined;
+            if (live) setPasswordPrompt(undefined);
+            resolve(password);
+          };
+          pendingPassword.current = settle;
+          if (live) {
+            setPasswordPrompt({ attempt, submit: (password) => settle(password), cancel: () => settle(null) });
+          }
+        }));
+
     void openDocument({
       source,
       token,
       forceKind,
       offline,
-      options,
+      options: { ...options, requestPassword },
       onProgress: (update) => {
         if (live) setProgress(update);
       },
@@ -124,6 +157,9 @@ export function useFileViewer(opts: UseFileViewerOptions = {}): FileViewerResult
 
     return () => {
       live = false;
+      // A prompt left open would keep the abandoned load waiting forever.
+      pendingPassword.current?.(null);
+      setPasswordPrompt(undefined);
       void token.dispose();
       if (tokenRef.current === token) tokenRef.current = undefined;
     };
@@ -142,7 +178,7 @@ export function useFileViewer(opts: UseFileViewerOptions = {}): FileViewerResult
   }, []);
 
   return useMemo(
-    () => ({ status, progress, error, doc, format, source: resolved, fromCache, reload, cancel }),
-    [status, progress, error, doc, format, resolved, fromCache, reload, cancel],
+    () => ({ status, progress, error, doc, format, source: resolved, fromCache, passwordPrompt, reload, cancel }),
+    [status, progress, error, doc, format, resolved, fromCache, passwordPrompt, reload, cancel],
   );
 }

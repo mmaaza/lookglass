@@ -465,3 +465,226 @@
     color: var(--lg-hl-dark, inherit);
   }
 }
+
+/* ------------------------------ layout body ----------------------------- */
+
+[data-lookglass-body] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+[data-lookglass-body] > [data-lookglass-content] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* -------------------------------- outline ------------------------------- */
+
+[data-lookglass-outline] {
+  flex: 0 0 auto;
+  width: min(280px, 40%);
+  overflow: auto;
+  border-right: 1px solid var(--lg-border);
+  background: var(--lg-surface);
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+[data-lookglass-outline] ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 12px;
+}
+
+[data-lookglass-outline] > ul {
+  padding-left: 4px;
+}
+
+[data-lookglass-outline] button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  text-align: left;
+  width: 100%;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+[data-lookglass-outline] button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--lg-accent) 12%, transparent);
+}
+
+[data-lookglass-outline] button:disabled {
+  color: var(--lg-muted);
+  cursor: default;
+}
+
+[data-lookglass-outline-empty] {
+  color: var(--lg-muted);
+  padding: 4px 12px;
+  margin: 0;
+}
+
+[data-lookglass-outline-toggle][aria-pressed="true"] {
+  border-color: var(--lg-accent);
+  color: var(--lg-accent);
+}
+
+/* ------------------------------- password ------------------------------- */
+
+[data-lookglass-password] {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+}
+
+[data-lookglass-password] p {
+  margin: 0;
+}
+
+[data-lookglass-password-error] {
+  color: #b42318;
+}
+
+[data-lookglass-password] input,
+[data-lookglass-password] button {
+  font: inherit;
+  color: inherit;
+  padding: 6px 10px;
+  border-radius: var(--lg-radius);
+  border: 1px solid var(--lg-border);
+  background: var(--lg-bg);
+}
+
+[data-lookglass-password] input {
+  width: min(280px, 100%);
+}
+
+[data-lookglass-password] button[type="submit"] {
+  border-color: var(--lg-accent);
+  background: var(--lg-accent);
+  color: var(--lg-accent-fg);
+  cursor: pointer;
+}
+
+/* ---------------------------------- pdf --------------------------------- */
+
+[data-lookglass-surface="pdf"] {
+  background: var(--lg-surface);
+}
+
+[data-lookglass-page] {
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 0 0 1px rgb(0 0 0 / 0.05);
+  /* Pages are paper: they stay white in dark mode, as every PDF viewer does. */
+  color-scheme: light;
+}
+
+[data-lookglass-page-error] {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #b42318;
+  font-size: 13px;
+}
+
+[data-lookglass-link] {
+  z-index: 2;
+  cursor: pointer;
+}
+
+[data-lookglass-link]:focus-visible {
+  outline: 2px solid var(--lg-accent);
+}
+
+/*
+ * PDF.js text layer. Required for selection and search highlighting to line
+ * up with the canvas; adapted from pdfjs-dist/web/pdf_viewer.css, which is not
+ * imported wholesale because most of it styles PDF.js's own viewer chrome.
+ */
+[data-lookglass-page] .textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+[data-lookglass-page] .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+[data-lookglass-page] .textLayer > :not(.markedContent),
+[data-lookglass-page] .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+[data-lookglass-page] .textLayer .markedContent {
+  display: contents;
+}
+
+[data-lookglass-page] .textLayer ::selection {
+  background: rgb(0 0 255 / 0.25);
+}
+
+[data-lookglass-page] .textLayer br::selection {
+  background: transparent;
+}
+
+[data-lookglass-page] .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+}
+
+[data-lookglass-page] [data-main-rotation="90"] {
+  transform: rotate(90deg) translateY(-100%);
+}
+
+[data-lookglass-page] [data-main-rotation="180"] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+
+[data-lookglass-page] [data-main-rotation="270"] {
+  transform: rotate(270deg) translateX(-100%);
+}
+
+/* Search marks sit on transparent text, so they carry their own colour. */
+[data-lookglass-page] .textLayer mark[data-lookglass-match] {
+  color: transparent;
+  background: rgb(255 214 10 / 0.45);
+  border-radius: 2px;
+}
+
+[data-lookglass-page] .textLayer mark[data-lookglass-active] {
+  background: rgb(255 140 0 / 0.6);
+}

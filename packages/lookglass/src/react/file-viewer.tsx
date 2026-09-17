@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PasswordPrompt } from '../headless/use-file-viewer.js';
+import type { OutlineNode } from '../types.js';
 import { useDocState } from '../headless/use-doc-state.js';
 import { useFileViewer, type UseFileViewerOptions } from '../headless/use-file-viewer.js';
 import { formatBytes } from '../source/blob.js';
@@ -67,6 +69,8 @@ export function FileViewer({
   }, [source]);
 
   const Surface = doc?.Surface;
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const hasOutline = Boolean(capabilities.outline && doc?.outline);
 
   const statusText = useMemo(() => {
     if (!doc || !format || !source) return '';
@@ -87,6 +91,8 @@ export function FileViewer({
           pageLabel={capitalise(doc.meta.pageLabel ?? 'page')}
           onDownload={onDownload}
           onPrint={() => globalThis.print()}
+          outlineOpen={outlineOpen}
+          onToggleOutline={hasOutline ? () => setOutlineOpen((open) => !open) : undefined}
         />
       ) : null}
 
@@ -103,8 +109,14 @@ export function FileViewer({
         </div>
       ) : null}
 
+      <div data-lookglass-body="">
+      {outlineOpen && hasOutline && doc?.outline && controller ? (
+        <OutlinePanel key={doc.meta.title} load={doc.outline} onSelect={(page) => controller.goToPage(page)} />
+      ) : null}
       <div data-lookglass-content="">
-        {status === 'idle' ? (
+        {viewer.passwordPrompt ? (
+          <PasswordForm prompt={viewer.passwordPrompt} />
+        ) : status === 'idle' ? (
           (renderEmpty?.() ?? <div data-lookglass-empty="">No file selected</div>)
         ) : status === 'loading' ? (
           (renderLoading?.(progress) ?? <DefaultLoading progress={progress} />)
@@ -114,6 +126,7 @@ export function FileViewer({
           <Surface className="lookglass-surface" />
         ) : null}
       </div>
+      </div>
 
       {!hideStatusBar && statusText ? (
         <div data-lookglass-statusbar="">
@@ -121,6 +134,100 @@ export function FileViewer({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Password entry for protected documents.
+ *
+ * The password goes straight to the renderer through the prompt callback: it
+ * is never stored in React state beyond the uncontrolled input, never logged,
+ * and never put in a URL.
+ */
+function PasswordForm({ prompt }: { prompt: PasswordPrompt }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [prompt.attempt]);
+
+  return (
+    <form
+      data-lookglass-password=""
+      onSubmit={(event) => {
+        event.preventDefault();
+        prompt.submit(inputRef.current?.value ?? '');
+      }}
+    >
+      <p id="lookglass-password-label">This document is password protected.</p>
+      {prompt.attempt > 1 ? (
+        <p data-lookglass-password-error="" role="alert">
+          That password was incorrect. Try again.
+        </p>
+      ) : null}
+      <input
+        ref={inputRef}
+        type="password"
+        autoComplete="off"
+        aria-labelledby="lookglass-password-label"
+        aria-invalid={prompt.attempt > 1 || undefined}
+      />
+      <span data-lookglass-group="">
+        <button type="submit">Open</button>
+        <button type="button" onClick={() => prompt.cancel()}>
+          Cancel
+        </button>
+      </span>
+    </form>
+  );
+}
+
+/** Loads the outline lazily: large PDFs can have thousands of entries. */
+function OutlinePanel({ load, onSelect }: { load: () => Promise<OutlineNode[]>; onSelect: (page: number) => void }) {
+  const [nodes, setNodes] = useState<OutlineNode[] | undefined>();
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    load().then(
+      (result) => live && setNodes(result),
+      () => live && setFailed(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [load]);
+
+  return (
+    <nav data-lookglass-outline="" aria-label="Document outline">
+      {failed ? (
+        <p data-lookglass-outline-empty="">The outline could not be loaded.</p>
+      ) : nodes === undefined ? (
+        <p data-lookglass-outline-empty="">Loading outline…</p>
+      ) : nodes.length === 0 ? (
+        <p data-lookglass-outline-empty="">This document has no outline.</p>
+      ) : (
+        <OutlineList nodes={nodes} onSelect={onSelect} />
+      )}
+    </nav>
+  );
+}
+
+function OutlineList({ nodes, onSelect }: { nodes: OutlineNode[]; onSelect: (page: number) => void }) {
+  return (
+    <ul>
+      {nodes.map((node) => (
+        <li key={node.id}>
+          <button
+            type="button"
+            disabled={node.page === undefined}
+            onClick={() => node.page !== undefined && onSelect(node.page)}
+          >
+            {node.title || 'Untitled'}
+          </button>
+          {node.children?.length ? <OutlineList nodes={node.children} onSelect={onSelect} /> : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
