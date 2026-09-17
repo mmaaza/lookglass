@@ -8,11 +8,19 @@ export interface WarmCacheOptions {
   assetBasePath?: string;
   /** Extra same-origin URLs to pull into the cache. */
   extraAssets?: string[];
+  /**
+   * Also fetch every syntax-highlighting grammar (roughly 100 small chunks).
+   * On by default, because this function exists to prepare for offline use;
+   * without it, source files open uncoloured until each grammar has been seen
+   * online once.
+   */
+  highlighting?: boolean;
   signal?: AbortSignal;
 }
 
 export interface WarmCacheResult {
   renderers: { loaded: string[]; failed: string[] };
+  highlighting: { loaded: string[]; failed: string[] };
   assets: { cached: string[]; failed: string[] };
   /** App-shell entries the service worker cached for offline reloads. */
   shell: { cached: number; requested: number };
@@ -37,6 +45,17 @@ export async function warmCache(opts: WarmCacheOptions = {}): Promise<WarmCacheR
   registerDefaultRenderers();
 
   const renderers = await registry.preloadAll();
+
+  let highlighting: WarmCacheResult['highlighting'] = { loaded: [], failed: [] };
+  if (opts.highlighting !== false) {
+    try {
+      const { preloadHighlighting } = await import('../renderers/text/index.js');
+      highlighting = await preloadHighlighting();
+    } catch {
+      // Highlighting is progressive enhancement; never fail the warm-up for it.
+      highlighting = { loaded: [], failed: ['*'] };
+    }
+  }
 
   const assetBase = opts.assetBasePath ?? '/lookglass';
   const assets = [...(await discoverAssets(assetBase, opts.signal)), ...(opts.extraAssets ?? [])];
@@ -64,7 +83,7 @@ export async function warmCache(opts: WarmCacheOptions = {}): Promise<WarmCacheR
 
   const shell = await warmShell(opts.signal);
 
-  return { renderers, assets: { cached, failed }, shell };
+  return { renderers, highlighting, assets: { cached, failed }, shell };
 }
 
 /**

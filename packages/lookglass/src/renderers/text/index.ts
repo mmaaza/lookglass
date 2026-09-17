@@ -2,10 +2,12 @@
 
 import { BaseController } from '../../core/controller.js';
 import type { OpenContext, OpenedDoc, RendererFactory } from '../../core/renderer.js';
-import type { RpcClient } from '../../core/rpc.js';
+import { createRpcClient, type RpcClient } from '../../core/rpc.js';
+import { createWorker } from '../../core/worker-pool.js';
 import type { Capabilities, DocMeta, SearchHit } from '../../types.js';
 import type { TextWorkerHandlers } from '../../workers/text.worker.js';
-import { LineStore } from './line-store.js';
+import { languageFor } from '../../core/languages.js';
+import { BLOCK_LINES, LineStore } from './line-store.js';
 import { createTextSurface } from './surface.js';
 
 const CAPABILITIES: Capabilities = {
@@ -22,6 +24,11 @@ const CAPABILITIES: Capabilities = {
 
 export interface TextRendererOptions {
   showLineNumbers?: boolean;
+  /**
+   * Syntax highlighting. `'auto'` (the default) enables it for recognised
+   * source extensions under 2 MB; `false` never loads the highlighter.
+   */
+  highlight?: boolean | 'auto';
   /** Character encoding override. Sniffed from a BOM or UTF-8 validity. */
   encoding?: string;
 }
@@ -58,7 +65,21 @@ export const textRenderer: RendererFactory = {
       { signal: ctx.token.signal, onProgress: ctx.onProgress },
     );
 
-    const store = new LineStore(client, ctx.memory, result.lineCount);
+    const language = options.highlight === false ? undefined : languageFor(ctx.source.name, ctx.format.ext);
+    let highlightNote: string | undefined;
+    let highlighted = false;
+    if (language) {
+      ctx.onProgress({ phase: 'rendering', message: `Loading ${language} highlighting` });
+      const outcome = await client.call(
+        'enableHighlight',
+        { language, blockLines: BLOCK_LINES },
+        { signal: ctx.token.signal },
+      );
+      highlighted = outcome.enabled;
+      highlightNote = outcome.reason;
+    }
+
+    const store = new LineStore(client, ctx.memory, result.lineCount, highlighted);
 
     const controller = new BaseController({
       pageCount: Math.max(1, result.lineCount),
@@ -90,6 +111,7 @@ export const textRenderer: RendererFactory = {
         lines: result.lineCount,
         bytes: result.byteLength,
         encoding: result.encoding,
+        ...(language ? { language, highlighted, ...(highlightNote ? { highlightNote } : {}) } : {}),
       },
       degraded: result.truncated
         ? {
@@ -119,5 +141,24 @@ export const textRenderer: RendererFactory = {
     };
   },
 };
+
+/**
+ * Load every syntax grammar inside a throwaway text worker, so the service
+ * worker caches the grammar chunks for offline use. Grammars are dynamic
+ * imports *inside* the worker, which the main-thread registry preload cannot
+ * reach on its own.
+ */
+export async function preloadHighlighting(): Promise<{ loaded: string[]; failed: string[] }> {
+  const worker = createWorker(
+    'text',
+    () => new Worker(new URL('../../workers/text.worker.js', import.meta.url), { type: 'module' }),
+  );
+  const client = createRpcClient<TextWorkerHandlers>(worker, 'text worker');
+  try {
+    return await client.call('preloadHighlighting', undefined as never, { timeoutMs: 120_000 });
+  } finally {
+    client.terminate();
+  }
+}
 
 export default textRenderer;

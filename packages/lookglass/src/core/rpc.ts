@@ -73,6 +73,12 @@ export function createRpcClient<T extends RpcHandlers>(worker: Worker, label = '
   const pending = new Map<number, Pending>();
   let nextId = 1;
   let terminated = false;
+  /**
+   * Set once the worker has failed. A module worker that throws while loading
+   * fires `error` before any call is pending, so without remembering the
+   * failure the first call would be posted to a dead thread and never settle.
+   */
+  let failure: ViewerError | undefined;
 
   const settleAll = (error: unknown) => {
     for (const entry of pending.values()) {
@@ -111,6 +117,7 @@ export function createRpcClient<T extends RpcHandlers>(worker: Worker, label = '
     const error = new ViewerError('worker-failed', `${label} crashed: ${event.message || 'unknown error'}`, {
       retryable: true,
     });
+    failure = error;
     settleAll(error);
   });
 
@@ -126,6 +133,7 @@ export function createRpcClient<T extends RpcHandlers>(worker: Worker, label = '
     },
 
     call(method, args, opts = {}) {
+      if (failure) return Promise.reject(failure);
       if (terminated) {
         return Promise.reject(new ViewerError('worker-failed', `${label} has been terminated.`));
       }

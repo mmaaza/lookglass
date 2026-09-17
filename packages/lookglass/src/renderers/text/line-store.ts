@@ -1,6 +1,7 @@
 import type { ScopedMemory } from '../../core/memory.js';
 import { stringBytes } from '../../core/memory.js';
 import type { RpcClient } from '../../core/rpc.js';
+import type { WireToken } from '../../workers/highlight.js';
 import type { TextWorkerHandlers } from '../../workers/text.worker.js';
 
 /** Lines are fetched in fixed blocks so scrolling does not thrash the worker. */
@@ -24,7 +25,16 @@ export class LineStore {
     private readonly client: RpcClient<TextWorkerHandlers>,
     private readonly memory: ScopedMemory,
     private readonly lineCount: number,
+    /**
+     * When set, blocks are fetched as tokens and plain lines are derived from
+     * them, so a highlighted document never pays for both reads.
+     */
+    private highlighted = false,
   ) {}
+
+  get isHighlighted(): boolean {
+    return this.highlighted;
+  }
 
   getVersion = (): number => this.revision;
 
@@ -42,6 +52,13 @@ export class LineStore {
     return lines?.[index - block * BLOCK_LINES];
   }
 
+  /** Tokens for a line, when highlighting is on and the block has arrived. */
+  getTokens(index: number): WireToken[] | undefined {
+    if (!this.highlighted) return undefined;
+    const block = Math.floor(index / BLOCK_LINES);
+    return this.memory.get<WireToken[][]>(`tokens:${block}`)?.[index - block * BLOCK_LINES];
+  }
+
   /** Request every block covering `[start, end)`. Safe to call each render. */
   ensureRange(start: number, end: number): void {
     const firstBlock = Math.floor(Math.max(0, start) / BLOCK_LINES);
@@ -51,9 +68,14 @@ export class LineStore {
 
   private ensureBlock(block: number): void {
     const key = `lines:${block}`;
-    if (this.memory.has(key)) {
+    // Lines and tokens are budgeted separately, so either can be evicted
+    // alone. A block missing its tokens must be refetched, or it would stay
+    // uncoloured for the rest of the session.
+    const tokensMissing = this.highlighted && !this.memory.has(`tokens:${block}`);
+    if (this.memory.has(key) && !tokensMissing) {
       // Touch so the visible window is the last thing to be evicted.
       this.memory.get(key);
+      this.memory.get(`tokens:${block}`);
       return;
     }
     if (this.pending.has(block)) return;
@@ -61,8 +83,7 @@ export class LineStore {
     const start = block * BLOCK_LINES;
     const end = Math.min(start + BLOCK_LINES, this.lineCount);
 
-    const request = this.client
-      .call('getLines', { start, end })
+    const request = (this.highlighted ? this.fetchTokens(block, start, end) : this.client.call('getLines', { start, end }))
       .then((lines) => {
         const bytes = lines.reduce((sum, line) => sum + stringBytes(line), 0);
         this.memory.set(key, lines, bytes);
@@ -81,5 +102,24 @@ export class LineStore {
       });
 
     this.pending.set(block, request);
+  }
+
+  private async fetchTokens(block: number, start: number, end: number): Promise<string[]> {
+    try {
+      const tokens = await this.client.call('getTokens', { start, end });
+      // Tokens carry colour strings per span, so budget them generously.
+      const bytes = tokens.reduce(
+        (sum, line) => sum + line.reduce((inner, token) => inner + stringBytes(token[0]) + 64, 24),
+        0,
+      );
+      this.memory.set(`tokens:${block}`, tokens, bytes);
+      return tokens.map((line) => line.map((token) => token[0]).join(''));
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') throw err;
+      // A tokenizer failure must never cost the user the text itself.
+      console.warn('[lookglass] highlighting failed; falling back to plain text', err);
+      this.highlighted = false;
+      return this.client.call('getLines', { start, end });
+    }
   }
 }

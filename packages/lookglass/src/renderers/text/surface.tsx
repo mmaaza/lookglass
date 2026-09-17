@@ -5,6 +5,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { DocState } from '../../types.js';
 import type { BaseController } from '../../core/controller.js';
 import type { SurfaceProps } from '../../core/renderer.js';
+import type { WireToken } from '../../workers/highlight.js';
 import { BLOCK_LINES, type LineStore } from './line-store.js';
 
 export interface TextSurfaceConfig {
@@ -103,9 +104,11 @@ export function createTextSurface(config: TextSurfaceConfig) {
                   {line === undefined ? (
                     <span data-lookglass-skeleton="" aria-hidden="true" />
                   ) : query ? (
+                    // Search marks take precedence over syntax colour; mixing
+                    // the two span trees is not worth the complexity.
                     highlight(line, query, version)
                   ) : (
-                    line
+                    renderTokens(store.getTokens(item.index)) ?? line
                   )}
                 </span>
               </div>
@@ -115,6 +118,33 @@ export function createTextSurface(config: TextSurfaceConfig) {
       </div>
     );
   };
+}
+
+/**
+ * Coloured spans for one line. Colours travel as CSS custom properties so the
+ * stylesheet, not JavaScript, picks the light or dark value — theme switches
+ * need no re-render and no second tokenisation.
+ */
+function renderTokens(tokens: WireToken[] | undefined) {
+  if (!tokens) return undefined;
+  return tokens.map(([content, light, dark, fontStyle], index) => (
+    <span
+      // Tokens within a line never reorder, so the index is a stable key.
+      key={index}
+      data-lookglass-token=""
+      style={
+        {
+          '--lg-hl-light': light || undefined,
+          '--lg-hl-dark': dark || undefined,
+          fontStyle: fontStyle & 1 ? 'italic' : undefined,
+          fontWeight: fontStyle & 2 ? 600 : undefined,
+          textDecoration: fontStyle & 4 ? 'underline' : undefined,
+        } as React.CSSProperties
+      }
+    >
+      {content}
+    </span>
+  ));
 }
 
 /** Subscribe a component to controller state without re-rendering the tree. */

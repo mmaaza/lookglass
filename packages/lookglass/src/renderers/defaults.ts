@@ -23,6 +23,30 @@ export function registerDefaultRenderers(): void {
   });
 
   registerRenderer({
+    id: 'lookglass/json',
+    kinds: ['json', 'jsonl'],
+    load: async () => (await import('./json/index.js')).jsonRenderer,
+  });
+
+  registerRenderer({
+    id: 'lookglass/xml',
+    kinds: ['xml'],
+    load: async () => (await import('./xml/index.js')).xmlRenderer,
+  });
+
+  registerRenderer({
+    id: 'lookglass/markdown',
+    kinds: ['markdown'],
+    load: async () => (await import('./markdown/index.js')).markdownRenderer,
+  });
+
+  registerRenderer({
+    id: 'lookglass/svg',
+    kinds: ['svg'],
+    load: async () => (await import('./svg/index.js')).svgRenderer,
+  });
+
+  registerRenderer({
     id: 'lookglass/text',
     kinds: ['text'],
     load: async () => (await import('./text/index.js')).textRenderer,

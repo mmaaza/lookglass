@@ -1,4 +1,5 @@
 import type { Source } from '../source/types.js';
+import { isCodeExtension } from '../core/languages.js';
 import type { DetectedFormat, FormatKind } from '../types.js';
 import {
   CFB_MAGIC,
@@ -177,6 +178,13 @@ function detectFromText(text: string, ext: string | undefined, size: number): De
   const trimmed = text.trimStart();
   if (trimmed.length === 0) {
     return { kind: 'text', mime: 'text/plain', ext, confidence: 0.6, method: 'content', label: 'Empty file' };
+  }
+
+  // A known source extension on text content is source code. Checked before
+  // the content heuristics because code trips all of them: Python and shell
+  // comments look like Markdown headings, and argument lists look like CSV.
+  if (isCodeExtension(ext)) {
+    return { kind: 'text', mime: 'text/plain', ext, confidence: 0.9, method: 'extension', label: 'Source code' };
   }
 
   if (/^<\?xml/i.test(trimmed) || /^<svg[\s>]/i.test(trimmed)) {

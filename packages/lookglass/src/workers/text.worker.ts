@@ -3,6 +3,7 @@ import { exposeRpc, type RpcContext } from '../core/rpc.js';
 import { sourceFromDescriptor } from '../source/index.js';
 import type { Source, SourceDescriptor } from '../source/types.js';
 import type { SearchHit } from '../types.js';
+import type { BlockHighlighter, WireToken } from './highlight.js';
 
 /**
  * Line-offset indexer for text and code.
@@ -37,6 +38,14 @@ interface TextState {
 }
 
 let state: TextState | undefined;
+let highlighter: { instance: BlockHighlighter; blockLines: number } | undefined;
+
+/**
+ * Highlighting walks blocks in order to carry grammar state, so the cost of
+ * reaching the end of a file grows with the file. Past this size the viewer
+ * stays plain rather than stalling on a long forward walk.
+ */
+const MAX_HIGHLIGHT_BYTES = 2 * 1024 * 1024;
 
 export interface OpenTextArgs {
   descriptor: SourceDescriptor;
@@ -145,34 +154,55 @@ const handlers = {
     return { lineCount, byteLength, encoding, truncated, indexedBytes };
   },
 
-  /**
-   * Decode one window of lines. Cost is proportional to the window, never to
-   * the file, because the byte range comes straight from the index.
-   */
-  async getLines(args: GetLinesArgs, ctx: RpcContext): Promise<string[]> {
-    const current = requireState();
-    const start = Math.max(0, Math.min(args.start, current.lineCount));
-    const end = Math.max(start, Math.min(args.end, current.lineCount));
-    if (start === end) return [];
-
-    const byteStart = current.offsets[start] ?? 0;
-    const byteEnd = end < current.lineCount ? (current.offsets[end] ?? current.indexedBytes) : current.indexedBytes;
-
-    const bytes = await current.source.slice(byteStart, byteEnd, ctx.signal);
-    const text = new TextDecoder(current.encoding, { fatal: false }).decode(bytes);
-
-    const lines = text.split('\n');
-    // `split` leaves a trailing empty element when the window ends on a
-    // newline; that element belongs to the next window, not this one.
-    if (lines.length > end - start) lines.length = end - start;
-
-    return lines.map((line) => {
-      const clean = line.endsWith('\r') ? line.slice(0, -1) : line;
-      // One pathological long line must not lock up the main thread when it
-      // is laid out, so hard-truncate for display.
-      return clean.length > MAX_LINE_CHARS ? `${clean.slice(0, MAX_LINE_CHARS)}…` : clean;
-    });
+  getLines(args: GetLinesArgs, ctx: RpcContext): Promise<string[]> {
+    return readLines(requireState(), args.start, args.end, ctx.signal);
   },
+
+  /**
+   * Turn on syntax highlighting. Declines (rather than throws) when the file
+   * is too large or the language has no grammar, so the caller falls back to
+   * plain text without treating it as an error.
+   */
+  async enableHighlight(
+    args: { language: string; blockLines: number },
+  ): Promise<{ enabled: boolean; reason?: string }> {
+    const current = requireState();
+    if (current.byteLength > MAX_HIGHLIGHT_BYTES) {
+      return { enabled: false, reason: 'File is too large to highlight.' };
+    }
+    if (current.truncated) return { enabled: false, reason: 'File is only partially indexed.' };
+
+    const { BlockHighlighter, supportsLanguage } = await import('./highlight.js');
+    if (!supportsLanguage(args.language)) return { enabled: false, reason: `No grammar for ${args.language}.` };
+
+    try {
+      highlighter = { instance: await BlockHighlighter.create(args.language), blockLines: args.blockLines };
+      return { enabled: true };
+    } catch (err) {
+      // Most likely a grammar chunk that is not cached while offline.
+      return { enabled: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  },
+
+  /** Tokens for one block. `start` must be a block boundary. */
+  async getTokens(args: GetLinesArgs, ctx: RpcContext): Promise<WireToken[][]> {
+    const current = requireState();
+    if (!highlighter) throw new Error('Highlighting is not enabled.');
+    const { instance, blockLines } = highlighter;
+    const block = Math.floor(args.start / blockLines);
+    return instance.tokens(
+      block,
+      (index) => readLines(current, index * blockLines, (index + 1) * blockLines, ctx.signal),
+      ctx.signal,
+    );
+  },
+
+  /** Load every grammar so highlighting works offline later. */
+  async preloadHighlighting(): Promise<{ loaded: string[]; failed: string[] }> {
+    const { preloadAllLanguages } = await import('./highlight.js');
+    return preloadAllLanguages();
+  },
+
 
   /**
    * Streaming substring search over the raw file.
@@ -238,10 +268,39 @@ const handlers = {
   close(): void {
     state?.source.dispose();
     state = undefined;
+    highlighter = undefined;
   },
 };
 
 export type TextWorkerHandlers = typeof handlers;
+
+/**
+ * Decode one window of lines. Cost is proportional to the window, never to
+ * the file, because the byte range comes straight from the index.
+ */
+async function readLines(current: TextState, from: number, to: number, signal?: AbortSignal): Promise<string[]> {
+  const start = Math.max(0, Math.min(from, current.lineCount));
+  const end = Math.max(start, Math.min(to, current.lineCount));
+  if (start === end) return [];
+
+  const byteStart = current.offsets[start] ?? 0;
+  const byteEnd = end < current.lineCount ? (current.offsets[end] ?? current.indexedBytes) : current.indexedBytes;
+
+  const bytes = await current.source.slice(byteStart, byteEnd, signal);
+  const text = new TextDecoder(current.encoding, { fatal: false }).decode(bytes);
+
+  const lines = text.split('\n');
+  // `split` leaves a trailing empty element when the window ends on a
+  // newline; that element belongs to the next window, not this one.
+  if (lines.length > end - start) lines.length = end - start;
+
+  return lines.map((line) => {
+    const clean = line.endsWith('\r') ? line.slice(0, -1) : line;
+    // One pathological long line must not lock up the main thread when it
+    // is laid out, so hard-truncate for display.
+    return clean.length > MAX_LINE_CHARS ? `${clean.slice(0, MAX_LINE_CHARS)}…` : clean;
+  });
+}
 
 function requireState(): TextState {
   if (!state) throw new Error('Text document is not open.');

@@ -8,6 +8,12 @@ import type { SourceInput } from 'lookglass';
 /** Files served from `examples/next-app/files` through the range handler. */
 const SERVER_FILES = [
   { label: 'app.log (large, ~40k lines)', path: 'app.log' },
+  { label: 'catalog.json (25k records)', path: 'catalog.json' },
+  { label: 'events.jsonl', path: 'events.jsonl' },
+  { label: 'catalog.xml (4k items)', path: 'catalog.xml' },
+  { label: 'guide.md', path: 'guide.md' },
+  { label: 'widget.ts (syntax highlighted)', path: 'widget.ts' },
+  { label: 'diagram.svg (carries XSS payloads)', path: 'diagram.svg' },
   { label: 'notes.txt', path: 'notes.txt' },
   { label: 'logo.png', path: 'logo.png' },
   { label: 'report.pdf (renderer lands in M2)', path: 'report.pdf' },
@@ -50,7 +56,7 @@ export function ViewerShell() {
     const handle = schedule(() => {
       void warmCache().then((result) => {
         setWarm(
-          `renderers cached: ${result.renderers.loaded.length}` +
+          `renderers cached: ${result.renderers.loaded.length}, grammars: ${result.highlighting.loaded.length}` +
             (result.renderers.failed.length ? `, failed: ${result.renderers.failed.join(', ')}` : ''),
         );
       });

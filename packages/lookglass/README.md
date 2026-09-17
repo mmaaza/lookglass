@@ -2,7 +2,7 @@
 
 All-in-one, offline-capable file viewer for React and Next.js — built for files that are too big for the naive approach.
 
-> **Status: M0 (foundation).** The core is complete and tested end to end. Text and image renderers ship as reference implementations of the renderer contract. PDF, DOCX, XLSX/CSV, PPTX, JSON, XML and Markdown land in M1–M5 — see [Roadmap](#roadmap).
+> **Status: M1.** Text, images, SVG, JSON, JSON Lines, XML and Markdown are supported. PDF, spreadsheets, DOCX and PPTX land in M2–M5 — see [Roadmap](#roadmap).
 
 ```bash
 npm install lookglass
@@ -116,6 +116,40 @@ Headless by default. Components carry no class names — only `data-lookglass-*`
 
 Or skip the stylesheet entirely and write your own rules against the same attributes. For full control, use `useFileViewer()` and render `doc.Surface` yourself.
 
+## Formats
+
+| Format | How it scales | Notes |
+| --- | --- | --- |
+| Text / logs | Worker builds a newline offset index; lines decoded per visible window | Tested to 40k+ lines with under 200 DOM rows |
+| Source code | Same as text, plus Shiki highlighting in the worker, 512 lines at a time | 44 languages, files up to 2 MB; larger files stay plain |
+| JSON, JSON Lines | Streaming byte scanner builds an offset table — **no `JSON.parse`** | ~30 bytes of index per node, values decoded per row |
+| XML | Same offset table as JSON, from a streaming scanner | Entities are never expanded (see below) |
+| Markdown | Parsed and sanitised in a worker, emitted per block, block-virtualised | GFM tables, task lists, raw HTML (sanitised). 32 MB cap |
+| SVG | Sanitised with DOMPurify, rendered inline | Scripts, handlers, `foreignObject` and remote references removed |
+| PNG, JPEG, WebP, GIF, AVIF | `createImageBitmap`, downscaled past the Safari canvas limit | EXIF orientation honoured; GIFs stay animated |
+
+### Why JSON is never `JSON.parse`d
+
+`JSON.parse` on a 300 MB document allocates an object graph several times the file size and blocks the thread for tens of seconds before it succeeds or throws. lookglass instead scans the bytes once into parallel typed arrays of offsets — every structural character in JSON is ASCII, and UTF-8 continuation bytes always have the high bit set, so a byte-level state machine finds every token without decoding anything. Keys and values are decoded only for the rows on screen, and each read is clamped, so a single 50 MB string costs the same to display as a short one.
+
+The scanner is verified by round-tripping every test document back through the offset table and comparing against `JSON.parse`, including values that straddle the 1 MiB chunk boundary.
+
+### Syntax highlighting
+
+Highlighting runs inside the text worker using Shiki's JavaScript regex engine — not the Oniguruma WASM build, which would be another runtime asset to lose offline and is blocked by strict CSPs without `wasm-unsafe-eval`.
+
+Lines are tokenised in blocks of 512, and the grammar state is carried from each block into the next. Without that, a block comment or template string that crosses a block edge is coloured as code on the far side. Carrying state means blocks must be tokenised in order, so scrolling straight to the end of a file walks forward through it once; that is why highlighting stops at 2 MB.
+
+Cost: the first source file loads about 90 kB (brotli) of highlighter and grammar, lazily, in the worker. `warmCache()` fetches all 44 grammars — about 330 kB — so source files are coloured offline; pass `{ highlighting: false }` to skip that. Pass `rendererOptions: { 'lookglass/text': { highlight: false } }` to never load the highlighter at all.
+
+### XML security
+
+Entities are **never expanded**. External entities are never fetched, so XXE is impossible by construction rather than filtered. Documents that declare internal entities are flagged and their references render literally, which makes billion-laughs expansion impossible too. Only the five predefined entities and numeric character references are decoded, at display time, on already-clipped text.
+
+### Untrusted markup
+
+SVG and Markdown both put document-supplied markup into your page's DOM, so both are sanitised before it gets there. SVG goes through DOMPurify's SVG profile plus a hook that strips remote `href`s and `url()` references, so an image cannot phone home or render differently offline. Markdown runs `rehype-raw` *then* `rehype-sanitize` in a worker — in that order, because sanitising before parsing raw HTML lets `<img onerror>` through as text that the browser later re-parses as markup. The user is told when anything was removed.
+
 ## Format detection
 
 Bytes first, declared MIME second, extension last — because extensions lie constantly in production. `.xls` files that are really HTML, `.docx` that are really legacy CFB, downloads with no extension. When the bytes disagree with the claim, lookglass follows the bytes and reports the disagreement in `format.mismatch` so the UI can say so rather than silently mis-rendering.
@@ -152,7 +186,7 @@ The build preserves `"use client"` per-module via `preserveModules` plus a custo
 | | Scope | Status |
 | --- | --- | --- |
 | M0 | Core: sources, detection, registry, workers, memory, chrome, server, SW | ✅ Done |
-| M1 | JSON, XML, Markdown, SVG; upgrade text with syntax highlighting | Next |
+| M1 | JSON, JSON Lines, XML, Markdown, SVG; syntax highlighting for text | ✅ Done |
 | M2 | PDF — range requests, virtualised pages, render cancellation | |
 | M3 | CSV (streaming) + XLSX (SheetJS, vendored) | |
 | M4 | DOCX | |

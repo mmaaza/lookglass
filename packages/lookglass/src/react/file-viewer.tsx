@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useDocState } from '../headless/use-doc-state.js';
 import { useFileViewer, type UseFileViewerOptions } from '../headless/use-file-viewer.js';
 import { formatBytes } from '../source/blob.js';
 import type { ViewerError } from '../core/errors.js';
@@ -45,6 +46,10 @@ export function FileViewer({
   const capabilities = doc?.meta.capabilities ?? NO_CAPABILITIES;
   const controller = doc?.controller;
 
+  // Live state, not `doc.meta`: meta is a snapshot from open time, and tree
+  // documents change their row count every time a node is expanded.
+  const docState = useDocState(controller);
+
   useKeyboardShortcuts(rootRef, controller, capabilities);
 
   const onDownload = useCallback(() => {
@@ -67,10 +72,10 @@ export function FileViewer({
     if (!doc || !format || !source) return '';
     const parts = [format.label];
     if (source.size >= 0) parts.push(formatBytes(source.size));
-    if (capabilities.pages) parts.push(`${doc.meta.pageCount.toLocaleString()} ${plural(doc.meta.pageLabel ?? 'page')}`);
+    if (capabilities.pages) parts.push(`${docState.pageCount.toLocaleString()} ${plural(doc.meta.pageLabel ?? 'page')}`);
     if (viewer.fromCache) parts.push('offline copy');
     return parts.join(' · ');
-  }, [doc, format, source, capabilities.pages, viewer.fromCache]);
+  }, [doc, format, source, capabilities.pages, viewer.fromCache, docState.pageCount]);
 
   return (
     <div ref={rootRef} className={className} data-lookglass-root="" data-lookglass-status={status} tabIndex={-1}>

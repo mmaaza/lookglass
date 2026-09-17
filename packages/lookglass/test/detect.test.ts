@@ -120,3 +120,22 @@ describe('detectFormat', () => {
     expect(result.kind).toBe('text');
   });
 });
+
+describe('detectFormat for source code', () => {
+  const fromCode = (text: string, name: string) =>
+    blobSource(new Blob([new TextEncoder().encode(text)]), name);
+
+  it('keeps a Python file with comment headings as text, not markdown', async () => {
+    const python = '# Configuration\n# - loads settings\n# - [docs](http://x)\nimport os\n';
+    expect((await detectFormat(fromCode(python, 'settings.py'))).kind).toBe('text');
+  });
+
+  it('keeps code with consistent commas as text, not CSV', async () => {
+    const js = 'call(a, b, c);\ncall(d, e, f);\ncall(g, h, i);\n';
+    expect((await detectFormat(fromCode(js, 'calls.js'))).kind).toBe('text');
+  });
+
+  it('still detects CSV when there is no code extension', async () => {
+    expect((await detectFormat(fromCode('a,b,c\n1,2,3\n4,5,6\n', 'data'))).kind).toBe('csv');
+  });
+});

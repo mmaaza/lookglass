@@ -47,7 +47,23 @@
     },
     "./styles.css": "./dist/styles.css",
     "./precache-plugin": "./tools/precache-plugin.mjs",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./json": {
+      "types": "./dist/renderers/json/index.d.ts",
+      "import": "./dist/renderers/json/index.js"
+    },
+    "./xml": {
+      "types": "./dist/renderers/xml/index.d.ts",
+      "import": "./dist/renderers/xml/index.js"
+    },
+    "./markdown": {
+      "types": "./dist/renderers/markdown/index.d.ts",
+      "import": "./dist/renderers/markdown/index.js"
+    },
+    "./svg": {
+      "types": "./dist/renderers/svg/index.d.ts",
+      "import": "./dist/renderers/svg/index.js"
+    }
   },
   "scripts": {
     "build": "npm run clean && npm run build:js && npm run build:types && npm run build:sw",
@@ -65,7 +81,18 @@
     "react-dom": "^18.2.0 || ^19.0.0"
   },
   "dependencies": {
-    "@tanstack/react-virtual": "^3.11.2"
+    "@tanstack/react-virtual": "^3.11.2",
+    "dompurify": "^3.4.15",
+    "mdast-util-to-string": "^4.0.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "shiki": "^3.23.0",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.2",
@@ -76,6 +103,7 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "happy-dom": "^16.3.0",
+    "jsdom": "^25.0.1",
     "magic-string": "^0.30.17",
     "rollup": "^4.29.1",
     "rollup-plugin-esbuild": "^6.1.1",
@@ -90,9 +118,9 @@
       "limit": "9 kB"
     },
     {
-      "name": "react chrome + headless + core",
+      "name": "react chrome + every renderer shell (size-limit inlines lazy imports: worst case)",
       "path": "dist/react/index.js",
-      "limit": "27 kB"
+      "limit": "40 kB"
     },
     {
       "name": "image renderer",
@@ -108,6 +136,31 @@
       "name": "service worker routes",
       "path": "dist/sw/index.js",
       "limit": "3 kB"
+    },
+    {
+      "name": "json renderer",
+      "path": "dist/renderers/json/index.js",
+      "limit": "12 kB"
+    },
+    {
+      "name": "xml renderer",
+      "path": "dist/renderers/xml/index.js",
+      "limit": "12 kB"
+    },
+    {
+      "name": "svg renderer (incl. DOMPurify)",
+      "path": "dist/renderers/svg/index.js",
+      "limit": "15 kB"
+    },
+    {
+      "name": "markdown worker (unified + sanitiser, off main thread)",
+      "path": "dist/workers/markdown.worker.js",
+      "limit": "105 kB"
+    },
+    {
+      "name": "markdown renderer shell",
+      "path": "dist/renderers/markdown/index.js",
+      "limit": "11 kB"
     }
   ],
   "keywords": [

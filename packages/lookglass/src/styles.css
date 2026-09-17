@@ -19,6 +19,10 @@
   --lg-match-active: #ffb224;
   --lg-warning-bg: #fff6e5;
   --lg-warning-fg: #7a4b00;
+  --lg-key: #8250df;
+  --lg-string: #0a7c42;
+  --lg-number: #b5560a;
+  --lg-literal: #b02a90;
   --lg-radius: 6px;
   --lg-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --lg-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -46,6 +50,10 @@
     --lg-match-active: #a8811d;
     --lg-warning-bg: #2e2413;
     --lg-warning-fg: #f0c987;
+    --lg-key: #c49bff;
+    --lg-string: #6fce9a;
+    --lg-number: #f0a868;
+    --lg-literal: #ef8ed0;
   }
 }
 
@@ -277,5 +285,183 @@
   [data-lookglass-progress-bar] {
     animation: none;
     transition: none;
+  }
+}
+
+/* -------------------------------- tree -------------------------------- */
+
+[data-lookglass-surface="tree"] {
+  font-family: var(--lg-mono);
+  background: var(--lg-bg);
+  line-height: 22px;
+}
+
+[data-lookglass-tree-row]:hover {
+  background: var(--lg-surface);
+}
+
+[data-lookglass-tree-row][data-lookglass-active] {
+  background: color-mix(in srgb, var(--lg-accent) 14%, transparent);
+}
+
+[data-lookglass-twisty] {
+  font: inherit;
+  border: 0;
+  background: none;
+  color: var(--lg-muted);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: transform 100ms ease;
+  flex: 0 0 auto;
+}
+
+[data-lookglass-twisty][data-lookglass-open] {
+  transform: rotate(90deg);
+}
+
+[data-lookglass-tree-key] {
+  color: var(--lg-key);
+  flex: 0 0 auto;
+}
+
+[data-lookglass-tree-key][data-lookglass-index] {
+  color: var(--lg-muted);
+}
+
+[data-lookglass-tree-value] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-lookglass-tree-value][data-lookglass-kind="string"] { color: var(--lg-string); }
+[data-lookglass-tree-value][data-lookglass-kind="number"] { color: var(--lg-number); }
+[data-lookglass-tree-value][data-lookglass-kind="boolean"],
+[data-lookglass-tree-value][data-lookglass-kind="null"] { color: var(--lg-literal); }
+[data-lookglass-tree-value][data-lookglass-kind="object"],
+[data-lookglass-tree-value][data-lookglass-kind="array"],
+[data-lookglass-tree-value][data-lookglass-kind="element"] { color: var(--lg-muted); }
+[data-lookglass-tree-value][data-lookglass-kind="comment"] { color: var(--lg-muted); font-style: italic; }
+
+[data-lookglass-tree-attrs] {
+  display: inline-flex;
+  gap: 8px;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+[data-lookglass-attr-name] { color: var(--lg-key); }
+[data-lookglass-attr-value] { color: var(--lg-string); }
+[data-lookglass-attr-name]::after { content: '='; color: var(--lg-muted); }
+
+/* ------------------------------ markdown ------------------------------ */
+
+[data-lookglass-surface="markdown"] {
+  background: var(--lg-bg);
+}
+
+[data-lookglass-prose] {
+  max-width: 78ch;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+  line-height: 1.65;
+}
+
+[data-lookglass-prose] h1,
+[data-lookglass-prose] h2,
+[data-lookglass-prose] h3 {
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
+}
+
+[data-lookglass-prose] h1 { font-size: 1.9em; }
+[data-lookglass-prose] h2 { font-size: 1.45em; border-bottom: 1px solid var(--lg-border); padding-bottom: 0.25em; }
+[data-lookglass-prose] h3 { font-size: 1.2em; }
+[data-lookglass-prose] p { margin: 0 0 1em; }
+[data-lookglass-prose] a { color: var(--lg-accent); }
+
+[data-lookglass-prose] code {
+  font-family: var(--lg-mono);
+  font-size: 0.88em;
+  background: var(--lg-surface);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+}
+
+[data-lookglass-prose] pre {
+  background: var(--lg-surface);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--lg-radius);
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+[data-lookglass-prose] pre code {
+  background: none;
+  padding: 0;
+}
+
+[data-lookglass-prose] blockquote {
+  margin: 0 0 1em;
+  padding: 0.2em 1em;
+  border-left: 3px solid var(--lg-border);
+  color: var(--lg-muted);
+}
+
+/* Wide tables scroll inside the block rather than widening the document. */
+[data-lookglass-prose] table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 1em;
+  max-width: 100%;
+}
+
+[data-lookglass-prose] th,
+[data-lookglass-prose] td {
+  border: 1px solid var(--lg-border);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+[data-lookglass-prose] th { background: var(--lg-surface); }
+[data-lookglass-prose] img { max-width: 100%; height: auto; }
+[data-lookglass-prose] hr { border: 0; border-top: 1px solid var(--lg-border); margin: 2em 0; }
+
+[data-lookglass-prose] p[data-lookglass-skeleton] {
+  height: 1.2em;
+  width: 70%;
+  background: var(--lg-border);
+  opacity: 0.4;
+  border-radius: 3px;
+}
+
+/* --------------------------------- svg -------------------------------- */
+
+[data-lookglass-surface="svg"] {
+  background:
+    repeating-conic-gradient(var(--lg-surface) 0% 25%, var(--lg-bg) 0% 50%) 50% / 20px 20px;
+}
+
+[data-lookglass-surface="svg"] svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+[data-lookglass-surface="svg"]:active { cursor: grabbing; }
+
+/* ------------------------- syntax highlighting ------------------------- */
+
+/* Tokens carry both theme colours as custom properties; the stylesheet picks
+   one, so switching colour scheme costs no re-render or re-tokenisation. */
+[data-lookglass-token] {
+  color: var(--lg-hl-light, inherit);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-lookglass-token] {
+    color: var(--lg-hl-dark, inherit);
   }
 }
