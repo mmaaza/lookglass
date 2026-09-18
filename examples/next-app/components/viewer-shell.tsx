@@ -49,6 +49,19 @@ export function ViewerShell() {
   }, []);
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      // No service worker under `next dev`: dev chunks are not content-hashed,
+      // and a worker left over from a production run would keep serving old
+      // code. Remove any such worker and its caches so dev always runs fresh.
+      void navigator.serviceWorker
+        ?.getRegistrations()
+        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())));
+      void globalThis.caches
+        ?.keys()
+        .then((keys) => Promise.all(keys.filter((key) => key.startsWith('lookglass-')).map((key) => caches.delete(key))));
+      return;
+    }
+
     void registerServiceWorker({
       url: '/sw.js',
       // Never auto-activate: swapping the cache generation under a live page

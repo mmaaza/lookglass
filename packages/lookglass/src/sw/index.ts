@@ -9,8 +9,9 @@
  *
  * What is cached here, and what is not:
  *
- *   - Renderer chunks and copied runtime assets -> Cache API, cache-first.
- *     Their URLs are content-hashed, so a stale entry is impossible.
+ *   - Content-hashed build output -> Cache API, cache-first.
+ *     Everything else (dev chunks, copied PDF.js assets) -> network-first,
+ *     with the cache as the offline fallback. See `isContentHashed`.
  *   - Document bytes -> **not here**. They go to OPFS, which can serve byte
  *     ranges and does not need the whole file resident. Putting a 1 GB PDF in
  *     the Cache API would defeat every large-file property of this library.
@@ -164,16 +165,8 @@ export function createLookglassRoutes(config: LookglassSwConfig): LookglassRoute
 
       event.respondWith(
         (async () => {
-          const precache = await caches.open(precacheName);
-          const precached = await precache.match(event.request);
-          if (precached) return precached;
-
           const runtime = await caches.open(runtimeName);
-          const cached = await runtime.match(event.request);
-          if (cached) return cached;
-
-          try {
-            const response = await fetch(event.request);
+          const store = async (response: Response) => {
             // Opaque and error responses are not worth caching, and caching an
             // opaque response silently consumes a large storage quota padding.
             if (response.ok && response.type === 'basic') {
@@ -181,7 +174,27 @@ export function createLookglassRoutes(config: LookglassSwConfig): LookglassRoute
               void trimCache(runtime, maxRuntimeEntries);
             }
             return response;
+          };
+
+          // Cache-first only when the URL itself changes with the content.
+          // `next dev` serves chunks under stable names like `page.js`, so
+          // treating every `/_next/static/` URL as immutable pins the first
+          // version ever fetched: the page then runs stale code against fresh
+          // server HTML, which shows up as hydration errors and missing
+          // features. Anything not provably hashed is fetched network-first,
+          // with the cache as the offline fallback.
+          if (isContentHashed(url.pathname)) {
+            const precache = await caches.open(precacheName);
+            const cached = (await precache.match(event.request)) ?? (await runtime.match(event.request));
+            if (cached) return cached;
+          }
+
+          try {
+            return await store(await fetch(event.request));
           } catch (err) {
+            const precache = await caches.open(precacheName);
+            const fallback = (await precache.match(event.request)) ?? (await runtime.match(event.request));
+            if (fallback) return fallback;
             // Offline with nothing cached: surface a clear signal so the
             // registry can report `renderer-missing` rather than a parse error.
             return new Response(
@@ -263,4 +276,16 @@ async function trimCache(cache: Cache, max: number): Promise<void> {
   if (keys.length <= max) return;
   // Cache API preserves insertion order, so the front is the oldest.
   await Promise.all(keys.slice(0, keys.length - max).map((key) => cache.delete(key)));
+}
+
+/**
+ * True when a file name carries a content hash, so its bytes can never change
+ * under the same URL. Production bundlers emit hex hashes of 8+ characters
+ * (`1933.dca65a69f8c38ac0.js`, `page-4f3a2b1c9d8e7f60.js`); development
+ * servers do not (`page.js`, `app-pages-internals.js`), and neither do the
+ * copied PDF.js assets, which change whenever pdfjs-dist is upgraded.
+ */
+export function isContentHashed(pathname: string): boolean {
+  const file = pathname.slice(pathname.lastIndexOf('/') + 1);
+  return /(?:^|[.-])[a-f0-9]{8,}\.[a-z0-9]+$/i.test(file) && /\d/.test(file);
 }
