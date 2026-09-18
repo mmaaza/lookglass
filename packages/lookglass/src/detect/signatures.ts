@@ -72,6 +72,14 @@ export const OOXML_MARKERS: { marker: string; kind: FormatKind; mime: string; la
     mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     label: 'PowerPoint presentation',
   },
+  // OpenDocument stores its type as an uncompressed first entry named
+  // "mimetype", so the type string appears verbatim near the file start.
+  {
+    marker: 'mimetypeapplication/vnd.oasis.opendocument.spreadsheet',
+    kind: 'ods',
+    mime: 'application/vnd.oasis.opendocument.spreadsheet',
+    label: 'OpenDocument spreadsheet',
+  },
   // Macro-enabled and template variants share the same primary part.
   { marker: 'xl/worksheets/', kind: 'xlsx', mime: 'application/vnd.ms-excel.sheet.macroEnabled.12', label: 'Excel workbook' },
   { marker: 'ppt/slides/', kind: 'pptx', mime: 'application/vnd.ms-powerpoint.presentation.macroEnabled.12', label: 'PowerPoint presentation' },
@@ -102,6 +110,8 @@ export const EXTENSION_MAP: Record<string, { kind: FormatKind; mime: string; lab
   },
   xlsm: { kind: 'xlsx', mime: 'application/vnd.ms-excel.sheet.macroEnabled.12', label: 'Excel workbook' },
   xls: { kind: 'xls', mime: 'application/vnd.ms-excel', label: 'Excel 97-2003 workbook' },
+  xlsb: { kind: 'xlsx', mime: 'application/vnd.ms-excel.sheet.binary.macroEnabled.12', label: 'Excel binary workbook' },
+  ods: { kind: 'ods', mime: 'application/vnd.oasis.opendocument.spreadsheet', label: 'OpenDocument spreadsheet' },
   csv: { kind: 'csv', mime: 'text/csv', label: 'CSV data' },
   tsv: { kind: 'csv', mime: 'text/tab-separated-values', label: 'TSV data' },
   pptx: {
@@ -135,6 +145,7 @@ export const MIME_MAP: Record<string, FormatKind> = {
   'application/msword': 'doc',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
   'application/vnd.ms-excel': 'xls',
+  'application/vnd.oasis.opendocument.spreadsheet': 'ods',
   'text/csv': 'csv',
   'text/tab-separated-values': 'csv',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',

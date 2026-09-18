@@ -2,7 +2,7 @@
 
 All-in-one, offline-capable file viewer for React and Next.js — built for files that are too big for the naive approach.
 
-> **Status: M2.** PDF, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. Spreadsheets, DOCX and PPTX land in M3–M5 — see [Roadmap](#roadmap).
+> **Status: M3.** PDF, spreadsheets (XLSX, XLS, XLSB, ODS), CSV/TSV, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. DOCX and PPTX land in M4–M5 — see [Roadmap](#roadmap).
 
 ```bash
 npm install lookglass
@@ -133,6 +133,8 @@ Or skip the stylesheet entirely and write your own rules against the same attrib
 | Markdown | Parsed and sanitised in a worker, emitted per block, block-virtualised | GFM tables, task lists, raw HTML (sanitised). 32 MB cap |
 | SVG | Sanitised with DOMPurify, rendered inline | Scripts, handlers, `foreignObject` and remote references removed |
 | PDF | PDF.js in a per-document worker, fed byte ranges from the source; virtualised pages | Search, text selection, outline, links, rotation, passwords. CJK via bundled CMaps |
+| CSV, TSV | Worker indexes every row's byte offset in one streaming pass; tiles read only the rows on screen | Quoted newlines, CRLF, UTF-16 (Excel "Unicode text"), delimiter and header detection. No size limit beyond 20 M rows |
+| XLSX, XLSM, XLSB, XLS, ODS | Vendored SheetJS in a worker; sheets listed without parsing, each parsed on first view | Merged cells, column widths, hidden columns and sheets, number formats, formula bar. 200 MB / 100k rows per sheet by default |
 | PNG, JPEG, WebP, GIF, AVIF | `createImageBitmap`, downscaled past the Safari canvas limit | EXIF orientation honoured; GIFs stay animated |
 
 ### Why JSON is never `JSON.parse`d
@@ -152,6 +154,24 @@ Passwords: `<FileViewer>` shows a prompt and handles wrong passwords and cancell
 Safety: documents never run embedded JavaScript (the QuickJS sandbox is not shipped), XFA forms are off, and only `http`, `https` and `mailto` links are followed.
 
 Print is deliberately not offered: most pages of a virtualised document are unmounted, so browser print would produce blank sheets. Download the original instead.
+
+### Spreadsheets
+
+CSV and workbooks share one grid: virtualised in both directions, with the column headers and row numbers as `sticky` elements in the same scroll container, so they move with the cells natively instead of being synchronised in JavaScript. Cells arrive in 128 × 32 tiles held in the shared byte budget.
+
+**CSV** is indexed, never loaded. A streaming state machine records each row's byte offset (4 bytes per row), and a tile reads exactly its rows back from the file — a 12 MB, 400,000-row export opens with a few hundred cells in the DOM. Quotes open a field only at field start, so a stray `5" floppy` does not swallow the rest of the file as one row. UTF-16 input is scanned in two-byte units, because a byte scan finds `0x0A` inside unrelated characters. Sorting and filtering are deliberately absent: both need every row materialised, which is exactly what this design avoids.
+
+**Workbooks** are compressed containers with shared-string tables, so they cannot be range-read: the file is read whole, up to 200 MB. What *is* lazy is parsing. Opening lists the sheets; each sheet is parsed the first time it is shown, and only two parsed sheets are kept. Parsed cells cost roughly 100 bytes each, so sheets are cut at 100,000 rows by default with a visible notice — export the sheet as CSV to see every row. Both limits are options:
+
+```tsx
+<FileViewer source={file} options={{ rendererOptions: { 'lookglass/sheet': { maxRows: 250_000 } } }} />
+```
+
+**Formulas are never evaluated.** Cells show the value Excel cached when the file was saved — what the author saw — and the formula bar shows the formula. Nothing in a document can make the viewer compute anything. Search covers the sheet on screen; searching every sheet would force parsing them all.
+
+Also handled: `.xls` files that are really HTML tables or Excel 2003 XML (what most web "Export to Excel" buttons produce), legacy `.xls` in non-Western codepages, and hidden sheets (shown, and marked). Password-protected workbooks are reported as such: SheetJS Community Edition cannot decrypt them.
+
+SheetJS is **vendored** at `vendor/sheetjs/` (0.20.3, Apache-2.0). SheetJS no longer publishes to npm — the `xlsx` package there is years behind — and depending on a CDN tarball URL breaks air-gapped installs. See `vendor/sheetjs/VENDOR.md` for provenance, checksums and the upgrade procedure.
 
 ### Syntax highlighting
 
@@ -209,7 +229,7 @@ The build preserves `"use client"` per-module via `preserveModules` plus a custo
 | M0 | Core: sources, detection, registry, workers, memory, chrome, server, SW | ✅ Done |
 | M1 | JSON, JSON Lines, XML, Markdown, SVG; syntax highlighting for text | ✅ Done |
 | M2 | PDF — range requests, virtualised pages, render cancellation, search, outline, passwords | ✅ Done |
-| M3 | CSV (streaming) + XLSX (SheetJS, vendored) | |
+| M3 | CSV (streaming) + XLSX/XLS/ODS (SheetJS, vendored) | ✅ Done |
 | M4 | DOCX | |
 | M5a | PPTX tiers 1–2: zip index, slide/layout/master inheritance, theme | |
 | M5b | PPTX tiers 3–5: preset geometry, text layout, autofit, tables | |
@@ -223,7 +243,7 @@ npm run build          # build the package
 npm test               # unit tests (vitest)
 npm run fixtures -w @lookglass/example-next
 npm run dev            # playground at http://localhost:3210
-npm run test:e2e       # offline acceptance suite (Playwright)
+npm run test:e2e       # acceptance suite (Playwright), on its own port 3211
 ```
 
 The Playwright suite is the real acceptance test: it warms the cache, calls `context.setOffline(true)`, reloads, and opens documents. Nothing else catches a worker chunk that never got cached or an asset quietly fetched from a CDN.

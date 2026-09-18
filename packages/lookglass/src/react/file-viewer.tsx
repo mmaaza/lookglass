@@ -128,6 +128,23 @@ export function FileViewer({
       </div>
       </div>
 
+      {capabilities.sheets && doc?.meta.sheets && controller ? (
+        <div data-lookglass-sheet-tabs="" role="tablist" aria-label="Sheets">
+          {doc.meta.sheets.map((name, index) => (
+            <button
+              key={name + index}
+              type="button"
+              role="tab"
+              aria-selected={docState.sheet === index}
+              data-lookglass-hidden-sheet={name.endsWith('(hidden)') || undefined}
+              onClick={() => controller.setSheet(index)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {!hideStatusBar && statusText ? (
         <div data-lookglass-statusbar="">
           <span>{statusText}</span>

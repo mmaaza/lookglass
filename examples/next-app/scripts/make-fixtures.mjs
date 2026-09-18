@@ -10,6 +10,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writePdfFixtures } from './pdf-fixtures.mjs';
+import { writeSheetFixtures } from './sheet-fixtures.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'files');
 await mkdir(root, { recursive: true });
@@ -184,5 +185,6 @@ await writeFile(
 /* ------------------------- PDF and unsupported ------------------------ */
 
 await writePdfFixtures(root);
+await writeSheetFixtures(root);
 
 console.log(`fixtures written to ${root}`);

@@ -187,6 +187,22 @@ function detectFromText(text: string, ext: string | undefined, size: number): De
     return { kind: 'text', mime: 'text/plain', ext, confidence: 0.9, method: 'extension', label: 'Source code' };
   }
 
+  // Web exports routinely name HTML tables and Excel 2003 XML as .xls.
+  // SheetJS reads both, so they go to the workbook viewer, not the XML tree.
+  if ((ext === 'xls' || ext === 'xlsx') && trimmed.startsWith('<')) {
+    const head = trimmed.slice(0, 4096).toLowerCase();
+    if (head.includes('<table') || head.includes('urn:schemas-microsoft-com:office:spreadsheet')) {
+      return {
+        kind: 'xls',
+        mime: 'application/vnd.ms-excel',
+        ext,
+        confidence: 0.85,
+        method: 'content',
+        label: 'Excel workbook (HTML/XML)',
+      };
+    }
+  }
+
   if (/^<\?xml/i.test(trimmed) || /^<svg[\s>]/i.test(trimmed)) {
     const isSvg = /<svg[\s>]/i.test(trimmed.slice(0, 2048));
     return isSvg

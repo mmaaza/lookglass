@@ -11,7 +11,9 @@
     "dist",
     "bin",
     "tools",
-    "README.md"
+    "README.md",
+    "vendor/sheetjs/LICENSE",
+    "vendor/sheetjs/VENDOR.md"
   ],
   "bin": {
     "lookglass-copy-assets": "./bin/copy-assets.mjs"
@@ -67,6 +69,14 @@
     "./pdf": {
       "types": "./dist/renderers/pdf/index.d.ts",
       "import": "./dist/renderers/pdf/index.js"
+    },
+    "./csv": {
+      "types": "./dist/renderers/csv/index.d.ts",
+      "import": "./dist/renderers/csv/index.js"
+    },
+    "./sheet": {
+      "types": "./dist/renderers/sheet/index.d.ts",
+      "import": "./dist/renderers/sheet/index.js"
     }
   },
   "scripts": {
@@ -179,6 +189,21 @@
       "name": "pdf worker (lazy, off main thread)",
       "path": "dist/workers/pdf.worker.js",
       "limit": "400 kB"
+    },
+    {
+      "name": "csv/sheet grid renderer shell",
+      "path": "dist/renderers/sheet/index.js",
+      "limit": "14 kB"
+    },
+    {
+      "name": "csv worker (streaming indexer, off main thread)",
+      "path": "dist/workers/csv.worker.js",
+      "limit": "8 kB"
+    },
+    {
+      "name": "sheet worker (vendored SheetJS + codepages, off main thread)",
+      "path": "dist/workers/sheet.worker.js",
+      "limit": "220 kB"
     }
   ],
   "keywords": [

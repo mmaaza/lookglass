@@ -688,3 +688,154 @@
 [data-lookglass-page] .textLayer mark[data-lookglass-active] {
   background: rgb(255 140 0 / 0.6);
 }
+
+/* --------------------------------- grid --------------------------------- */
+
+[data-lookglass-surface="grid"] {
+  background: var(--lg-bg);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-lookglass-grid-message] {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--lg-muted);
+}
+
+[data-lookglass-formula-bar] {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--lg-border);
+  font-family: var(--lg-mono);
+  font-size: 12px;
+}
+
+[data-lookglass-cell-address] {
+  min-width: 7ch;
+  color: var(--lg-muted);
+  border-right: 1px solid var(--lg-border);
+  padding-right: 10px;
+}
+
+[data-lookglass-cell-content] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-lookglass-col-headers] {
+  background: var(--lg-surface);
+}
+
+[data-lookglass-corner] {
+  background: var(--lg-surface);
+  border-right: 1px solid var(--lg-border);
+  border-bottom: 1px solid var(--lg-border);
+}
+
+[data-lookglass-col-header],
+[data-lookglass-row-header] {
+  background: var(--lg-surface);
+  color: var(--lg-muted);
+  font-size: 0.85em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--lg-border);
+  border-bottom: 1px solid var(--lg-border);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  user-select: none;
+}
+
+/* Named CSV columns read as titles, not coordinates. */
+[data-lookglass-col-header] {
+  font-weight: 600;
+}
+
+[data-lookglass-col-header][data-lookglass-selected],
+[data-lookglass-row-header][data-lookglass-selected] {
+  background: color-mix(in srgb, var(--lg-accent) 18%, var(--lg-surface));
+  color: var(--lg-fg);
+}
+
+[data-lookglass-cell] {
+  background: var(--lg-bg);
+  border-right: 1px solid var(--lg-border);
+  border-bottom: 1px solid var(--lg-border);
+  padding: 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  cursor: cell;
+}
+
+/* Numbers and dates align right, as in every spreadsheet. */
+[data-lookglass-cell][data-type="n"],
+[data-lookglass-cell][data-type="d"] {
+  justify-content: flex-end;
+}
+
+[data-lookglass-cell][data-type="b"],
+[data-lookglass-cell][data-type="e"] {
+  justify-content: center;
+}
+
+[data-lookglass-cell][data-type="e"] {
+  color: #b42318;
+}
+
+[data-lookglass-cell][data-lookglass-match] {
+  background: var(--lg-match);
+}
+
+[data-lookglass-cell][data-lookglass-active] {
+  background: var(--lg-match-active);
+}
+
+[data-lookglass-cell][data-lookglass-selected] {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+[data-lookglass-sheet-tabs] {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 0 8px;
+  border-top: 1px solid var(--lg-border);
+  background: var(--lg-surface);
+}
+
+[data-lookglass-sheet-tabs] button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--lg-muted);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+[data-lookglass-sheet-tabs] button[aria-selected="true"] {
+  color: var(--lg-fg);
+  border-bottom-color: var(--lg-accent);
+  background: var(--lg-bg);
+}
+
+[data-lookglass-sheet-tabs] button[data-lookglass-hidden-sheet] {
+  font-style: italic;
+}

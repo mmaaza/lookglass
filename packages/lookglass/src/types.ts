@@ -12,6 +12,7 @@ export type FormatKind =
   | 'doc'
   | 'xlsx'
   | 'xls'
+  | 'ods'
   | 'csv'
   | 'pptx'
   | 'ppt'

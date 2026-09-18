@@ -19,6 +19,13 @@ const SERVER_FILES = [
   { label: 'big.pdf (1,200 pages, 11 MB)', path: 'big.pdf' },
   { label: 'cjk.pdf (needs CMap assets)', path: 'cjk.pdf' },
   { label: 'locked.pdf (password: lookglass)', path: 'locked.pdf' },
+  { label: 'sales.xlsx (4 sheets, 120k rows)', path: 'sales.xlsx' },
+  { label: 'orders.csv (400k rows, 12 MB)', path: 'orders.csv' },
+  { label: 'european.csv (semicolons)', path: 'european.csv' },
+  { label: 'unicode.tsv (UTF-16)', path: 'unicode.tsv' },
+  { label: 'legacy.xls (Excel 97)', path: 'legacy.xls' },
+  { label: 'budget.ods (OpenDocument)', path: 'budget.ods' },
+  { label: 'export.xls (HTML table)', path: 'export.xls' },
   { label: 'archive.zip (unsupported)', path: 'archive.zip' },
 ];
 

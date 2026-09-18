@@ -29,6 +29,18 @@ export function registerDefaultRenderers(): void {
   });
 
   registerRenderer({
+    id: 'lookglass/sheet',
+    kinds: ['xlsx', 'xls', 'ods'],
+    load: async () => (await import('./sheet/index.js')).sheetRenderer,
+  });
+
+  registerRenderer({
+    id: 'lookglass/csv',
+    kinds: ['csv'],
+    load: async () => (await import('./csv/index.js')).csvRenderer,
+  });
+
+  registerRenderer({
     id: 'lookglass/json',
     kinds: ['json', 'jsonl'],
     load: async () => (await import('./json/index.js')).jsonRenderer,

@@ -139,3 +139,29 @@ describe('detectFormat for source code', () => {
     expect((await detectFormat(fromCode('a,b,c\n1,2,3\n4,5,6\n', 'data'))).kind).toBe('csv');
   });
 });
+
+describe('detectFormat for spreadsheets', () => {
+  const fromText = (text: string, name: string) => blobSource(new Blob([new TextEncoder().encode(text)]), name);
+
+  it('identifies OpenDocument spreadsheets by their mimetype entry', async () => {
+    const name = new TextEncoder().encode('mimetypeapplication/vnd.oasis.opendocument.spreadsheet');
+    const header = new Uint8Array(30 + name.length);
+    new DataView(header.buffer).setUint32(0, 0x04034b50, true);
+    header.set(name, 30);
+    expect((await detectFormat(blobSource(new Blob([header]), 'budget.bin'))).kind).toBe('ods');
+  });
+
+  it('sends an HTML table saved as .xls to the workbook viewer', async () => {
+    const html = '<html><body><table><tr><td>1</td></tr></table></body></html>';
+    expect((await detectFormat(fromText(html, 'export.xls'))).kind).toBe('xls');
+  });
+
+  it('sends Excel 2003 XML saved as .xls to the workbook viewer', async () => {
+    const xml = '<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"></Workbook>';
+    expect((await detectFormat(fromText(xml, 'report.xls'))).kind).toBe('xls');
+  });
+
+  it('keeps ordinary XML as XML', async () => {
+    expect((await detectFormat(fromText('<?xml version="1.0"?><root/>', 'data.xml'))).kind).toBe('xml');
+  });
+});

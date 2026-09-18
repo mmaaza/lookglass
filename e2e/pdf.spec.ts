@@ -109,11 +109,11 @@ test.describe('pdf', () => {
     await expect(password).toBeVisible({ timeout: 30_000 });
 
     await password.fill('not-it');
-    await page.getByRole('button', { name: 'Open' }).click();
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
     await expect(page.locator('[data-lookglass-password-error]')).toBeVisible({ timeout: 20_000 });
 
     await password.fill('lookglass');
-    await page.getByRole('button', { name: 'Open' }).click();
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
     await expect(page.locator('[data-lookglass-page="1"][data-lookglass-rendered]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('[data-lookglass-page="1"] .textLayer')).toContainText('Secret unlocked page', {
       timeout: 20_000,
