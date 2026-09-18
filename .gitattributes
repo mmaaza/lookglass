@@ -1,0 +1,4 @@
+# Vendored third-party code is stored and checked out byte-for-byte, so its
+# SHA-256 checksums in VENDOR.md hold on every platform and core.autocrlf
+# setting.
+packages/lookglass/vendor/** -text
