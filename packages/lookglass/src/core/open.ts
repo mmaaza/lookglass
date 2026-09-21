@@ -157,12 +157,30 @@ export async function openDocument(opts: OpenDocumentOptions): Promise<OpenDocum
 
     token.throwIfAborted();
 
+    if (format.encrypted) {
+      throw new ViewerError(
+        'password-required',
+        `This ${format.label.toLowerCase()} is password protected. Encrypted Office files cannot be previewed; remove the password in the app that created it, or open it there.`,
+        { detail: { name: source.name, kind: format.kind }, retryable: false },
+      );
+    }
+
     if (format.kind === 'unknown') {
       throw new ViewerError(
         'unsupported-format',
         `${source.name} is not a file type lookglass can display.`,
         { detail: { name: source.name, size: source.size }, retryable: false },
       );
+    }
+
+    // Legacy binary Office formats are recognised only so the message can
+    // say what the file is and what to do about it.
+    const legacy = LEGACY_FORMATS[format.kind];
+    if (legacy && !registry.supports(format.kind)) {
+      throw new ViewerError('unsupported-format', legacy, {
+        detail: { name: source.name, kind: format.kind },
+        retryable: false,
+      });
     }
 
     // ---- renderer ------------------------------------------------------
@@ -202,3 +220,8 @@ export async function openDocument(opts: OpenDocumentOptions): Promise<OpenDocum
     throw ViewerError.from(err);
   }
 }
+
+const LEGACY_FORMATS: Partial<Record<DetectedFormat['kind'], string>> = {
+  doc: 'Word 97-2003 documents (.doc) cannot be previewed. Save the file as .docx in Word and open it again.',
+  ppt: 'PowerPoint 97-2003 presentations (.ppt) cannot be previewed. Save the file as .pptx in PowerPoint and open it again.',
+};

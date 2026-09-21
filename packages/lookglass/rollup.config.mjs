@@ -50,6 +50,7 @@ export default [
       'renderers/defaults': 'src/renderers/defaults.ts',
       'renderers/text/index': 'src/renderers/text/index.ts',
       'renderers/pdf/index': 'src/renderers/pdf/index.ts',
+      'renderers/docx/index': 'src/renderers/docx/index.ts',
       'renderers/csv/index': 'src/renderers/csv/index.ts',
       'renderers/sheet/index': 'src/renderers/sheet/index.ts',
       'renderers/json/index': 'src/renderers/json/index.ts',

@@ -39,6 +39,11 @@ export interface DetectedFormat {
   label: string;
   /** Set when the declared type disagreed with the bytes on disk. */
   mismatch?: { claimed: string; actual: FormatKind };
+  /**
+   * The file is a password-protected Office document. Office encryption
+   * cannot be removed in the browser, so these are reported, not opened.
+   */
+  encrypted?: boolean;
 }
 
 /* ------------------------------------------------------------------ *

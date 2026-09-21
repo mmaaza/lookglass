@@ -29,6 +29,12 @@ export function registerDefaultRenderers(): void {
   });
 
   registerRenderer({
+    id: 'lookglass/docx',
+    kinds: ['docx'],
+    load: async () => (await import('./docx/index.js')).docxRenderer,
+  });
+
+  registerRenderer({
     id: 'lookglass/sheet',
     kinds: ['xlsx', 'xls', 'ods'],
     load: async () => (await import('./sheet/index.js')).sheetRenderer,

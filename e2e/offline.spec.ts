@@ -85,4 +85,24 @@ test.describe('lookglass playground', () => {
 
     await context.setOffline(false);
   });
+
+  test('opens a Word document offline, with its renderer from the precache', async ({ page, context }) => {
+    await warmAndWait(page);
+    await page.getByRole('button', { name: /report\.docx/ }).click();
+    await expect(page.locator('[data-lookglass-surface="docx"] section').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('cached-note')).toContainText('report.docx', { timeout: 30_000 });
+
+    await context.setOffline(true);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'lookglass' })).toBeVisible({ timeout: 30_000 });
+
+    // A fresh page load: the docx chunk (docx-preview, JSZip) must come from
+    // the service worker cache, and the bytes from OPFS.
+    await page.getByRole('button', { name: /report\.docx/ }).click();
+    await expect(page.locator('[data-lookglass-surface="docx"] section').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-lookglass-page-total]')).toHaveText('/ 301');
+    await expect(page.locator('[data-lookglass-statusbar]')).toContainText('offline copy');
+
+    await context.setOffline(false);
+  });
 });

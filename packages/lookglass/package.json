@@ -70,6 +70,10 @@
       "types": "./dist/renderers/pdf/index.d.ts",
       "import": "./dist/renderers/pdf/index.js"
     },
+    "./docx": {
+      "types": "./dist/renderers/docx/index.d.ts",
+      "import": "./dist/renderers/docx/index.js"
+    },
     "./csv": {
       "types": "./dist/renderers/csv/index.d.ts",
       "import": "./dist/renderers/csv/index.js"
@@ -96,6 +100,7 @@
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.11.2",
+    "docx-preview": "0.4.0",
     "dompurify": "^3.4.15",
     "mdast-util-to-string": "^4.0.0",
     "pdfjs-dist": "^5.7.284",
@@ -133,11 +138,13 @@
       "limit": "9 kB"
     },
     {
-      "name": "react chrome + every renderer shell, excluding the PDF.js engine (worst case: lazy imports inlined)",
+      "name": "react chrome + every renderer shell, excluding the PDF.js and docx-preview engines (worst case: lazy imports inlined)",
       "path": "dist/react/index.js",
-      "limit": "48 kB",
+      "limit": "56 kB",
       "ignore": [
-        "pdfjs-dist"
+        "pdfjs-dist",
+        "docx-preview",
+        "jszip"
       ]
     },
     {
@@ -189,6 +196,11 @@
       "name": "pdf worker (lazy, off main thread)",
       "path": "dist/workers/pdf.worker.js",
       "limit": "400 kB"
+    },
+    {
+      "name": "docx renderer, incl. docx-preview + JSZip (lazy)",
+      "path": "dist/renderers/docx/index.js",
+      "limit": "75 kB"
     },
     {
       "name": "csv/sheet grid renderer shell",

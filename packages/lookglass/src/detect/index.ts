@@ -11,6 +11,7 @@ import {
   ZIP_MAGIC_ALT,
   matches,
 } from './signatures.js';
+import { cfbStreamNames, classifyCfb } from './cfb.js';
 
 export * from './signatures.js';
 
@@ -120,16 +121,36 @@ async function detectFromBytes(
   }
 
   if (matches(head, CFB_MAGIC)) {
-    // A CFB container needs its directory parsed to know which Office app
-    // wrote it. We do not ship a CFB parser in core, so the extension picks
-    // the variant — and all three variants are legacy formats we only
-    // recognise in order to give a useful "not supported" message.
-    const kind: FormatKind = ext === 'xls' ? 'xls' : ext === 'ppt' ? 'ppt' : 'doc';
+    // The container is shared by legacy .doc/.xls/.ppt and by encrypted
+    // OOXML, so the names of its top-level streams decide. When they cannot
+    // be read, the extension picks the variant, as it always has.
+    const flavour = classifyCfb(await cfbStreamNames(source, head, signal).catch(() => []));
+    if (flavour === 'encrypted') {
+      // Encryption hides the real type; the extension is all there is.
+      const kind: FormatKind =
+        ext === 'docx' || ext === 'docm' || ext === 'dotx'
+          ? 'docx'
+          : ext === 'xlsx' || ext === 'xlsm' || ext === 'xlsb'
+            ? 'xlsx'
+            : ext === 'pptx' || ext === 'pptm' || ext === 'ppsx'
+              ? 'pptx'
+              : 'unknown';
+      return {
+        kind,
+        mime: EXTENSION_MAP[ext ?? '']?.mime ?? 'application/x-cfb',
+        ext,
+        confidence: 0.95,
+        method: 'container',
+        label: kind === 'unknown' ? 'Encrypted Office document' : labelFor(kind),
+        encrypted: true,
+      };
+    }
+    const kind: FormatKind = flavour ?? (ext === 'xls' ? 'xls' : ext === 'ppt' ? 'ppt' : 'doc');
     return {
       kind,
-      mime: EXTENSION_MAP[ext ?? 'doc']?.mime ?? 'application/x-cfb',
+      mime: flavour ? (EXTENSION_MAP[flavour]?.mime ?? 'application/x-cfb') : (EXTENSION_MAP[ext ?? 'doc']?.mime ?? 'application/x-cfb'),
       ext,
-      confidence: ext ? 0.85 : 0.6,
+      confidence: flavour ? 0.97 : ext ? 0.85 : 0.6,
       method: 'container',
       label: labelFor(kind),
     };

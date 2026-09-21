@@ -2,7 +2,7 @@
 
 All-in-one, offline-capable file viewer for React and Next.js — built for files that are too big for the naive approach.
 
-> **Status: M3.** PDF, spreadsheets (XLSX, XLS, XLSB, ODS), CSV/TSV, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. DOCX and PPTX land in M4–M5 — see [Roadmap](#roadmap).
+> **Status: M4.** PDF, Word (DOCX), spreadsheets (XLSX, XLS, XLSB, ODS), CSV/TSV, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. PPTX lands in M5 — see [Roadmap](#roadmap).
 
 ```bash
 npm install lookglass
@@ -133,6 +133,7 @@ Or skip the stylesheet entirely and write your own rules against the same attrib
 | Markdown | Parsed and sanitised in a worker, emitted per block, block-virtualised | GFM tables, task lists, raw HTML (sanitised). 32 MB cap |
 | SVG | Sanitised with DOMPurify, rendered inline | Scripts, handlers, `foreignObject` and remote references removed |
 | PDF | PDF.js in a per-document worker, fed byte ranges from the source; virtualised pages | Search, text selection, outline, links, rotation, passwords. CJK via bundled CMaps |
+| DOCX | docx-preview renders once; pages are kept detached and mounted only while visible, in a shadow root | Word's own page breaks, headers, footers, footnotes, lists, tables, images, outline, TOC links. Documents with no page breaks are cut into page-sized pieces. 150 MB / 128 MB of XML by default |
 | CSV, TSV | Worker indexes every row's byte offset in one streaming pass; tiles read only the rows on screen | Quoted newlines, CRLF, UTF-16 (Excel "Unicode text"), delimiter and header detection. No size limit beyond 20 M rows |
 | XLSX, XLSM, XLSB, XLS, ODS | Vendored SheetJS in a worker; sheets listed without parsing, each parsed on first view | Merged cells, column widths, hidden columns and sheets, number formats, formula bar. 200 MB / 100k rows per sheet by default |
 | PNG, JPEG, WebP, GIF, AVIF | `createImageBitmap`, downscaled past the Safari canvas limit | EXIF orientation honoured; GIFs stay animated |
@@ -154,6 +155,24 @@ Passwords: `<FileViewer>` shows a prompt and handles wrong passwords and cancell
 Safety: documents never run embedded JavaScript (the QuickJS sandbox is not shipped), XFA forms are off, and only `http`, `https` and `mailto` links are followed.
 
 Print is deliberately not offered: most pages of a virtualised document are unmounted, so browser print would produce blank sheets. Download the original instead.
+
+### Word documents
+
+Rendering uses [docx-preview](https://github.com/VolodymyrBaydalka/docxjs), which needs the DOM, so parsing and layout run on the main thread; the package's inflated XML is checked from the ZIP directory before anything is parsed, so a small file that expands to gigabytes is refused instead of freezing the tab. After that, everything is built for size: docx-preview's page sections are kept **detached**, and only the pages on screen are moved into the document. In the test suite a 100,000-paragraph document (18.7 MB of XML, 2,500 pages) opens in under 4 seconds with a handful of pages mounted; search builds its text index on first use (about 350 ms there) and is instant after that.
+
+Pages follow Word's own pagination: Word records where it broke pages when it saves a file, and those markers are used. Files written by other tools often carry no page breaks at all, and would render as one enormous page; those are cut into page-sized pieces at paragraph boundaries, and between table rows (never inside a merged cell). `meta.extra.pagination` says which happened — `'word'` or `'estimated'`.
+
+Two things break when pages are detached, and both are repaired. **List numbering** is CSS counters, which only count elements in the live DOM, so each page is given the counter values the whole document would have reached by then. **Internal links** (tables of contents, bookmarks) point at pages that may not be mounted, so they are resolved against an index and navigated in the virtual list.
+
+Safety: docx-preview pastes style and font names from the file into its stylesheet without escaping, so a crafted font name can inject CSS. The stylesheet is re-parsed by the browser's CSS parser in an inert document and rebuilt rule by rule, dropping `@import`, `:host`, and any declaration that loads a remote resource; it is then applied inside a **shadow root**, so it cannot style the host app even if something slipped through (and the host app's CSS cannot distort the document). Markup goes through DOMPurify: `javascript:` links are removed, external links open in a new tab, remote images are never fetched, and embedded HTML chunks (which docx-preview would render as unsandboxed iframes) are not rendered. Comments are not shown; tracked changes are shown as final text unless `trackedChanges: true`.
+
+Office fonts that exist only on Windows get metric-compatible fallbacks (Carlito for Calibri, Caladea for Cambria, the Liberation family for Arial, Times New Roman and Courier New), so text wraps where Word wraps it when those fonts are installed. Style pages from outside with `[data-lookglass-surface="docx"]::part(page)`.
+
+Password-protected `.docx` files and Word 97-2003 `.doc` files are recognised from their container and reported with a clear message; neither can be opened in the browser. Print is not offered, for the same reason as PDF.
+
+```tsx
+<FileViewer source={file} options={{ rendererOptions: { 'lookglass/docx': { maxBytes: 300 * 1024 * 1024, trackedChanges: true } } }} />
+```
 
 ### Spreadsheets
 
@@ -191,7 +210,7 @@ SVG and Markdown both put document-supplied markup into your page's DOM, so both
 
 ## Format detection
 
-Bytes first, declared MIME second, extension last — because extensions lie constantly in production. `.xls` files that are really HTML, `.docx` that are really legacy CFB, downloads with no extension. When the bytes disagree with the claim, lookglass follows the bytes and reports the disagreement in `format.mismatch` so the UI can say so rather than silently mis-rendering.
+Bytes first, declared MIME second, extension last — because extensions lie constantly in production. `.xls` files that are really HTML, `.docx` that are really legacy CFB, downloads with no extension. Compound (CFB) files are told apart by the names of their streams, so a password-protected `.docx`, a Word 97 file misnamed `.docx` and a workbook misnamed `.doc` are each identified correctly (`format.encrypted` marks the first). When the bytes disagree with the claim, lookglass follows the bytes and reports the disagreement in `format.mismatch` so the UI can say so rather than silently mis-rendering.
 
 ## Adding a renderer
 
@@ -230,7 +249,7 @@ The build preserves `"use client"` per-module via `preserveModules` plus a custo
 | M1 | JSON, JSON Lines, XML, Markdown, SVG; syntax highlighting for text | ✅ Done |
 | M2 | PDF — range requests, virtualised pages, render cancellation, search, outline, passwords | ✅ Done |
 | M3 | CSV (streaming) + XLSX/XLS/ODS (SheetJS, vendored) | ✅ Done |
-| M4 | DOCX | |
+| M4 | DOCX — detached-page virtualisation, Word pagination, lists, outline, links, sanitised CSS in a shadow root | ✅ Done |
 | M5a | PPTX tiers 1–2: zip index, slide/layout/master inheritance, theme | |
 | M5b | PPTX tiers 3–5: preset geometry, text layout, autofit, tables | |
 | M6 | Fuzz corpus, a11y audit, docs, v1.0 | |

@@ -839,3 +839,15 @@
 [data-lookglass-sheet-tabs] button[data-lookglass-hidden-sheet] {
   font-style: italic;
 }
+
+/* --------------------------------- docx --------------------------------- */
+
+/*
+ * Word pages render inside a shadow root, so page styling cannot be reached
+ * from here except through the exposed part: `::part(page)` is the box a
+ * page is drawn in. Match colours come from --lg-match / --lg-match-active,
+ * which inherit into the shadow root.
+ */
+[data-lookglass-surface="docx"] {
+  background: var(--lg-surface);
+}

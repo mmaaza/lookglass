@@ -165,3 +165,39 @@ describe('detectFormat for spreadsheets', () => {
     expect((await detectFormat(fromText('<?xml version="1.0"?><root/>', 'data.xml'))).kind).toBe('xml');
   });
 });
+
+/** A version 3 compound file whose first directory sector names these streams. */
+function cfb(names: string[]): Uint8Array {
+  const bytes = new Uint8Array(512 * 3);
+  const view = new DataView(bytes.buffer);
+  bytes.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  view.setUint16(0x1e, 9, true);
+  view.setUint32(0x30, 0, true);
+  ['Root Entry', ...names].forEach((name, index) => {
+    const base = 512 + index * 128;
+    for (let i = 0; i < name.length; i++) view.setUint16(base + i * 2, name.charCodeAt(i), true);
+    view.setUint16(base + 0x40, (name.length + 1) * 2, true);
+    bytes[base + 0x42] = index === 0 ? 5 : 2;
+  });
+  return bytes;
+}
+
+describe('compound files', () => {
+  it('reports a password-protected .docx as encrypted, not as a legacy document', async () => {
+    const format = await detectFormat(fromBytes(cfb(['EncryptionInfo', 'EncryptedPackage']), 'secret.docx'));
+    expect(format).toMatchObject({ kind: 'docx', encrypted: true });
+    const workbook = await detectFormat(fromBytes(cfb(['EncryptionInfo', 'EncryptedPackage']), 'secret.xlsx'));
+    expect(workbook).toMatchObject({ kind: 'xlsx', encrypted: true });
+  });
+
+  it('recognises a Word 97 file misnamed .docx from its streams', async () => {
+    const format = await detectFormat(fromBytes(cfb(['WordDocument', '1Table']), 'report.docx'));
+    expect(format.kind).toBe('doc');
+    expect(format.encrypted).toBeUndefined();
+    expect(format.mismatch?.actual).toBe('doc');
+  });
+
+  it('recognises a workbook misnamed .doc from its streams', async () => {
+    expect((await detectFormat(fromBytes(cfb(['Workbook']), 'numbers.doc'))).kind).toBe('xls');
+  });
+});
