@@ -95,7 +95,7 @@ const handlers = {
     }
     for (const font of fonts) ctx.transfer(font.data);
 
-    const measurer = new TextMeasurer(context);
+    const measurer = new TextMeasurer(context, { roundAdvances: true });
     const layout = new DocxLayout(parsed.document, new DocxFontService(resolver, measurer));
     state = { pkg, doc: parsed.document, layout, waiters: [], texts: new Map() };
 

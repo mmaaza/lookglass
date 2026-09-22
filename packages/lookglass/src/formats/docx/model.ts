@@ -171,6 +171,8 @@ export interface Table {
   cellMargins: Record<'top' | 'bottom' | 'left' | 'right', number>;
   /** Total width in twips when fixed. */
   width?: number;
+  /** `w:tblLayout w:type="fixed"`: columns are exactly the grid. */
+  fixedLayout: boolean;
   section?: SectionProps;
 }
 

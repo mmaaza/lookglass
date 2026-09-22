@@ -39,6 +39,8 @@ export interface TextAtom {
   font: ResolvedRunFont;
   props: RunProps;
   width: number;
+  /** Exact painted width; `width` may use Word's rounded advances instead. */
+  raw: number;
   /** Width of trailing breakable spaces, which may hang past the margin. */
   trailing: number;
   /** Space characters, for justification. */
@@ -173,6 +175,7 @@ function pushText(atoms: Atom[], raw: string, props: RunProps, fonts: FontServic
     pieces.forEach((piece, index) => {
       const isLast = index === pieces.length - 1;
       const width = measure(fonts, font.spec, piece.text, letterSpacing, props.scale);
+      const raw = measure(fonts, font.spec, piece.text, letterSpacing, props.scale, true);
       const trailing = piece.trailingSpace > 0 ? measure(fonts, font.spec, piece.text.slice(piece.text.length - piece.trailingSpace), letterSpacing, props.scale) : 0;
       const breakAfter = forceBreak || !isLast || piece.trailingSpace > 0 || /[-‐–—​]$/.test(piece.text) || isIdeographEnd(piece.text);
       atoms.push({
@@ -181,6 +184,7 @@ function pushText(atoms: Atom[], raw: string, props: RunProps, fonts: FontServic
         font,
         props,
         width,
+        raw,
         trailing,
         spaces: countSpaces(piece.text),
         breakAfter,
@@ -192,10 +196,10 @@ function pushText(atoms: Atom[], raw: string, props: RunProps, fonts: FontServic
   }
 }
 
-function measure(fonts: FontService, spec: FontSpec, text: string, letterSpacing: number, scale: number): number {
+function measure(fonts: FontService, spec: FontSpec, text: string, letterSpacing: number, scale: number, exact = false): number {
   // Soft hyphens are invisible unless a line breaks at them.
   const visible = text.includes('­') ? text.replace(/­/g, '') : text;
-  const width = fonts.measurer.width(spec, visible) + letterSpacing * visible.length;
+  const width = (exact ? fonts.measurer.rawWidth(spec, visible) : fonts.measurer.width(spec, visible)) + letterSpacing * visible.length;
   return scale !== 100 ? (width * scale) / 100 : width;
 }
 
@@ -454,7 +458,25 @@ export class LineBreaker {
     for (const placed of line.placed) placed.x -= bounds.left;
 
     if (line.ascent === 0 && line.descent === 0) includeMetrics(line, this.context.markFont.metrics, 0);
-    applyLineSpacing(line, props.line, props.lineRule);
+    // The text's own line height, without pictures: "multiple" spacing adds leading in proportion to this.
+    let fontHeight = 0;
+    for (const placed of line.placed) {
+      const atom = placed.atom;
+      if (atom.k === 'text' || atom.k === 'field' || atom.k === 'tab' || atom.k === 'ptab') {
+        const metrics = atom.font.metrics;
+        fontHeight = Math.max(fontHeight, metrics.ascent + metrics.descent + metrics.lineGap);
+      }
+    }
+    if (fontHeight === 0) {
+      const mark = this.context.markFont.metrics;
+      fontHeight = mark.ascent + mark.descent + mark.lineGap;
+      // A line holding only a picture still has the paragraph mark's descent below it.
+      if (line.placed.some((placed) => placed.atom.k === 'image')) {
+        line.descent = Math.max(line.descent, mark.descent);
+        line.gap = Math.max(line.gap, mark.lineGap);
+      }
+    }
+    applyLineSpacing(line, props.line, props.lineRule, fontHeight);
     return line;
   }
 
@@ -488,8 +510,9 @@ export class LineBreaker {
     let chars = 1;
     const measurer = (text: string) => measure(this.context.fonts, first.font.spec, text, first.letterSpacing, first.props.scale);
     while (chars < first.text.length && measurer(first.text.slice(0, chars + 1)) <= room) chars++;
-    const head: TextAtom = { ...first, text: first.text.slice(0, chars), width: measurer(first.text.slice(0, chars)), trailing: 0, breakAfter: true, spaces: 0 };
-    const tail: TextAtom = { ...first, text: first.text.slice(chars), width: measurer(first.text.slice(chars)) };
+    const exact = (text: string) => measure(this.context.fonts, first.font.spec, text, first.letterSpacing, first.props.scale, true);
+    const head: TextAtom = { ...first, text: first.text.slice(0, chars), width: measurer(first.text.slice(0, chars)), raw: exact(first.text.slice(0, chars)), trailing: 0, breakAfter: true, spaces: 0 };
+    const tail: TextAtom = { ...first, text: first.text.slice(chars), width: measurer(first.text.slice(chars)), raw: exact(first.text.slice(chars)) };
     this.atoms.splice(this.index, 1, head, tail);
     this.index += 1;
     return [head];
@@ -551,10 +574,13 @@ function includeAtomMetrics(line: Line, atom: Atom): void {
  * scaled for "multiple" spacing, replaced for "exact", floored for
  * "at least". Extra space goes above the text.
  */
-export function applyLineSpacing(line: Line, value: number, rule: 'auto' | 'exact' | 'atLeast'): void {
+export function applyLineSpacing(line: Line, value: number, rule: 'auto' | 'exact' | 'atLeast', fontHeight = line.ascent + line.descent + line.gap): void {
   const natural = line.ascent + line.descent + line.gap;
   let height = natural;
-  if (rule === 'auto') height = natural * (value / 240);
+  // Multiple spacing adds (multiple - 1) text lines of leading. For text this
+  // is natural × multiple; a line holding a tall picture gets the same
+  // leading as a text line, not a multiple of the picture's height.
+  if (rule === 'auto') height = natural + fontHeight * (value / 240 - 1);
   else if (rule === 'exact') height = twip(value);
   else height = Math.max(natural, twip(value));
   line.height = height;
@@ -634,8 +660,18 @@ export function paintLine(line: Line, paint: LinePaint, out: DisplayItem[], imag
 
   const baseline = paint.top + line.baseline;
   let current: TextItem | undefined;
+  // Layout widths (Word's) and painted widths (the font's) of the current item.
+  let layoutWidth = 0;
+  let paintedWidth = 0;
   const flush = () => {
-    if (current) out.push(current);
+    if (current) {
+      // Spread the difference over the characters, so the painted text
+      // occupies exactly the width layout gave it.
+      const chars = current.text.length;
+      const correction = chars > 0 ? (layoutWidth - paintedWidth) / chars : 0;
+      if (Math.abs(correction) > 0.001) current.letterSpacing = (current.letterSpacing ?? 0) + correction;
+      out.push(current);
+    }
     current = undefined;
   };
 
@@ -649,9 +685,13 @@ export function paintLine(line: Line, paint: LinePaint, out: DisplayItem[], imag
       if (current && sameStyle(current, style, atom) && Math.abs(current.x + current.width - x) < 0.5) {
         current.text += text;
         current.width += placed.width;
+        layoutWidth += atom.width;
+        paintedWidth += atom.raw;
         continue;
       }
       flush();
+      layoutWidth = atom.width;
+      paintedWidth = atom.raw;
       current = {
         t: 'text',
         x,
@@ -670,9 +710,11 @@ export function paintLine(line: Line, paint: LinePaint, out: DisplayItem[], imag
     if ((atom.k === 'tab' || atom.k === 'ptab') && placed.leader && placed.width > 0) {
       const char = LEADERS[placed.leader] ?? '.';
       const charWidth = Math.max(1, paint.context.fonts.measurer.width(atom.font.spec, char));
+      const exactWidth = paint.context.fonts.measurer.rawWidth(atom.font.spec, char);
       const count = Math.floor(placed.width / charWidth) - 1;
       if (count > 0) {
         out.push({
+          letterSpacing: charWidth - exactWidth || undefined,
           t: 'text',
           x: x + placed.width - count * charWidth,
           y: baseline,

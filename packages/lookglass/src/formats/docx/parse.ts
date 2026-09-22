@@ -330,6 +330,11 @@ function hyperlinkTarget(node: XmlElement, context: ParseContext): string | unde
 
 function parseRun(node: XmlElement, out: Inline[], context: ParseContext, run: (props: RPr) => RunProps, flow: FlowState, link: string | undefined) {
   const rPr = parseRPr(child(node, 'w:rPr'), context.theme);
+  // Word shows table-of-contents entries in the TOC styles' formatting, not
+  // as blue underlined links, although their runs carry the Hyperlink style.
+  if (rPr.styleId && flow.fields.some((field) => field.phase === 'result' && /^s*TOC/i.test(field.instruction))) {
+    if (context.styles.nameOf(rPr.styleId)?.toLowerCase() === 'hyperlink') delete rPr.styleId;
+  }
   let props: RunProps | undefined;
   const get = () => (props ??= run(rPr));
   for (const item of children(node)) {
@@ -680,9 +685,12 @@ function parseTable(node: XmlElement, context: ParseContext): Table {
   }
 
   const indent = intAttr(child(tblPr, 'w:tblInd'), 'w:w') ?? intAttr(child(style?.tblPr, 'w:tblInd'), 'w:w') ?? 0;
+  const fixedLayout = (child(tblPr, 'w:tblLayout') ?? child(style?.tblPr, 'w:tblLayout'))?.attrs['w:type'] === 'fixed';
+  const baseGrid = grid.length > 0 ? grid : inferGrid(rows);
   return {
     kind: 'tbl',
-    grid: grid.length > 0 ? grid : inferGrid(rows),
+    grid: fixedLayout ? baseGrid : preferredGrid(baseGrid, rows),
+    fixedLayout,
     rows,
     align: jc === 'center' ? 'center' : jc === 'right' || jc === 'end' ? 'right' : 'left',
     indent,
@@ -690,6 +698,31 @@ function parseTable(node: XmlElement, context: ParseContext): Table {
     cellMargins,
     width,
   };
+}
+
+/**
+ * Column widths for an auto-fit table.
+ *
+ * `w:tblGrid` is only what the last application to lay the table out
+ * computed, and files written by other tools often leave it stale. Word
+ * re-derives auto-fit columns from the cells' preferred widths (`w:tcW`),
+ * so when cells state widths for every column, those win.
+ */
+function preferredGrid(grid: number[], rows: TableRow[]): number[] {
+  const widths: Array<number | undefined> = new Array(grid.length).fill(undefined);
+  for (const row of rows) {
+    let col = 0;
+    for (const cell of row.cells) {
+      const span = Math.max(1, cell.props.gridSpan);
+      if (span === 1 && col < widths.length && widths[col] === undefined && cell.props.width && cell.props.width > 0) {
+        widths[col] = cell.props.width;
+      }
+      col += span;
+    }
+    if (widths.every((width) => width !== undefined)) break;
+  }
+  if (widths.some((width) => width === undefined)) return grid;
+  return widths as number[];
 }
 
 function inferGrid(rows: TableRow[]): number[] {
