@@ -124,6 +124,7 @@
     "@types/react-dom": "^19.0.2",
     "happy-dom": "^16.3.0",
     "jsdom": "^25.0.1",
+    "jszip": "^3.10.1",
     "magic-string": "^0.30.17",
     "rollup": "^4.29.1",
     "rollup-plugin-esbuild": "^6.1.1",
@@ -140,7 +141,7 @@
     {
       "name": "react chrome + every renderer shell, excluding the PDF.js and docx-preview engines (worst case: lazy imports inlined)",
       "path": "dist/react/index.js",
-      "limit": "56 kB",
+      "limit": "60 kB",
       "ignore": [
         "pdfjs-dist",
         "docx-preview",
@@ -201,6 +202,11 @@
       "name": "docx renderer, incl. docx-preview + JSZip (lazy)",
       "path": "dist/renderers/docx/index.js",
       "limit": "75 kB"
+    },
+    {
+      "name": "docx layout worker (OOXML core + Word engine, off main thread)",
+      "path": "dist/workers/docx.worker.js",
+      "limit": "40 kB"
     },
     {
       "name": "csv/sheet grid renderer shell",

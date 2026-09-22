@@ -43,8 +43,12 @@ export function ViewerShell() {
   // `?offline=0` turns off OPFS caching, so range loading can be observed on
   // its own without a background download running alongside it.
   const [offlineEnabled, setOfflineEnabled] = useState(true);
+  // `?docx=native` switches Word files to lookglass's own layout engine.
+  const [docxEngine, setDocxEngine] = useState<'native' | 'docx-preview'>('docx-preview');
   useEffect(() => {
-    setOfflineEnabled(new URLSearchParams(window.location.search).get('offline') !== '0');
+    const params = new URLSearchParams(window.location.search);
+    setOfflineEnabled(params.get('offline') !== '0');
+    setDocxEngine(params.get('docx') === 'native' ? 'native' : 'docx-preview');
   }, []);
 
   useEffect(() => {
@@ -171,6 +175,7 @@ export function ViewerShell() {
               cache: offlineEnabled,
               onCached: () => setCachedNote(`saved offline: ${label}`),
             }}
+            options={{ rendererOptions: { 'lookglass/docx': { engine: docxEngine } } }}
             className="lookglass"
             renderEmpty={() => <div className="empty">Pick a file to preview{label ? ` (${label})` : ''}</div>}
           />

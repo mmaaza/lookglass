@@ -18,6 +18,7 @@ import {
   type NumberingLevel,
 } from './layout.js';
 import { sanitizeDocxCss, sanitizeDocxTree, type SanitizeReport } from './sanitize.js';
+import { openNativeDocx } from './native.js';
 import { createDocxSurface } from './surface.js';
 import { readZipEntries } from './zip-entries.js';
 
@@ -36,6 +37,12 @@ const CAPABILITIES: Capabilities = {
 };
 
 export interface DocxRendererOptions {
+  /**
+   * `'docx-preview'` (default for now) renders through docx-preview as HTML.
+   * `'native'` uses lookglass's own layout engine: Word-like pagination,
+   * layout in a worker, pages drawn from display lists.
+   */
+  engine?: 'docx-preview' | 'native';
   /** Whole-file ceiling. DOCX is a ZIP and cannot be range-read. Default 150 MB. */
   maxBytes?: number;
   /**
@@ -75,6 +82,7 @@ export const docxRenderer: RendererFactory = {
 
   async open(ctx: OpenContext): Promise<OpenedDoc> {
     const options = (ctx.options.rendererOptions?.['lookglass/docx'] ?? {}) as DocxRendererOptions;
+    if (options.engine === 'native') return openNativeDocx(ctx, { maxXmlBytes: options.maxXmlBytes });
     const { token, source } = ctx;
 
     ctx.onProgress({ phase: 'fetching', message: 'Reading document' });

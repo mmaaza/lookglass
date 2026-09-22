@@ -223,6 +223,8 @@ export interface LoadProgress {
   ratio?: number;
   bytesDone?: number;
   bytesTotal?: number;
+  /** Units finished so far, when counting pages laid out or rows indexed. */
+  items?: number;
   /** Short status for the UI, e.g. "Indexing 1.2M rows". */
   message?: string;
 }

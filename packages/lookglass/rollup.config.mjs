@@ -38,7 +38,7 @@ const external = [
  *    import time), which crashes the worker before it can answer a single
  *    call. Bundling here makes worker behaviour independent of the host app.
  */
-const WORKERS = ['text', 'json', 'xml', 'markdown', 'pdf', 'csv', 'sheet'];
+const WORKERS = ['text', 'json', 'xml', 'markdown', 'pdf', 'csv', 'sheet', 'docx'];
 export default [
   {
     input: {
