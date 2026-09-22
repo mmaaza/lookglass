@@ -9,3 +9,6 @@ test-results/
 playwright-report/
 examples/next-app/public/lookglass/
 examples/next-app/public/sw.js
+
+# Real-world benchmark documents supplied locally; not redistributed.
+fixtures/docx-corpus/
