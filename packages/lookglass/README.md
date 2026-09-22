@@ -1,8 +1,8 @@
 # lookglass
 
-Lookglass is an open-source, offline-capable file viewer for React and Next.js. It previews PDF, DOCX, XLSX, CSV, PPTX, images, text, JSON, XML, and Markdown files with range-aware loading and offline caching.
+Lookglass is an open-source, offline-capable file viewer for React and Next.js. It previews PDF, DOCX, spreadsheets, CSV, images, text, JSON, XML, and Markdown files, with format-specific large-file handling and offline caching. PPTX is planned, not yet supported.
 
-> **Status: M4.** PDF, Word (DOCX), spreadsheets (XLSX, XLS, XLSB, ODS), CSV/TSV, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. PPTX lands in M5 — see [Roadmap](#roadmap).
+> **Status: M4.** PDF, Word (DOCX), spreadsheets (XLSX, XLS, XLSB, ODS), CSV/TSV, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. An opt-in native DOCX engine is under development; PPTX is planned on the shared OOXML engine — see [Roadmap](#roadmap).
 
 ```bash
 npm install lookglass
@@ -174,6 +174,19 @@ Password-protected `.docx` files and Word 97-2003 `.doc` files are recognised fr
 <FileViewer source={file} options={{ rendererOptions: { 'lookglass/docx': { maxBytes: 300 * 1024 * 1024, trackedChanges: true } } }} />
 ```
 
+### Native Word engine (opt-in)
+
+The default remains `docx-preview`. An initial native engine parses and lays out DOCX in a worker, then paints virtualized pages from display lists. It shares ZIP/OPC, XML, theme, font, and text infrastructure with the planned PPTX renderer. Layout fidelity and coverage are still being developed; enabling it does not imply Word parity.
+
+```tsx
+<FileViewer
+  source={file}
+  options={{ rendererOptions: { 'lookglass/docx': { engine: 'native' } } }}
+/>
+```
+
+The size options described above apply to the default renderer; the native path currently accepts `maxXmlBytes`. See the [repository roadmap](../../README.md#roadmap) for the engine milestones.
+
 ### Spreadsheets
 
 CSV and workbooks share one grid: virtualised in both directions, with the column headers and row numbers as `sticky` elements in the same scroll container, so they move with the cells natively instead of being synchronised in JavaScript. Cells arrive in 128 × 32 tiles held in the shared byte budget.
@@ -243,16 +256,18 @@ The build preserves `"use client"` per-module via `preserveModules` plus a custo
 
 ## Roadmap
 
-| | Scope | Status |
-| --- | --- | --- |
-| M0 | Core: sources, detection, registry, workers, memory, chrome, server, SW | ✅ Done |
-| M1 | JSON, JSON Lines, XML, Markdown, SVG; syntax highlighting for text | ✅ Done |
-| M2 | PDF — range requests, virtualised pages, render cancellation, search, outline, passwords | ✅ Done |
-| M3 | CSV (streaming) + XLSX/XLS/ODS (SheetJS, vendored) | ✅ Done |
-| M4 | DOCX — detached-page virtualisation, Word pagination, lists, outline, links, sanitised CSS in a shadow root | ✅ Done |
-| M5a | PPTX tiers 1–2: zip index, slide/layout/master inheritance, theme | |
-| M5b | PPTX tiers 3–5: preset geometry, text layout, autofit, tables | |
-| M6 | Fuzz corpus, a11y audit, docs, v1.0 | |
+M0–M4 delivered the initial core, structured formats, PDF, spreadsheets, and default DOCX renderer. The earlier M5a/M5b PPTX plan has been replaced by a shared browser-based OOXML engine:
+
+| Work | Status |
+| --- | --- |
+| O1: shared OOXML core | Initial implementation present, including an opt-in native DOCX engine |
+| O2: DOCX text and pagination | In progress, with corpus-based layout calibration |
+| O3: tables | Further layout and fidelity work planned |
+| O4: drawings | Planned; replace the default engine only after parity |
+| O5: PPTX | Planned; no renderer yet |
+| O6: advanced OOXML | Charts, equations, tracked changes, and RTL improvements planned |
+
+Accessibility, cross-browser testing, malformed-file coverage, performance checks, and documentation remain part of release hardening. See the [full roadmap and contributor guide](../../README.md) for current scope and development instructions.
 
 ## Development
 
