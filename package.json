@@ -1,6 +1,8 @@
 {
   "name": "lookglass-monorepo",
   "private": true,
+  "license": "MIT",
+  "description": "Open-source, offline-capable file viewer monorepo for React and Next.js.",
   "workspaces": ["packages/*", "examples/*"],
   "scripts": {
     "build": "npm run build -w lookglass",

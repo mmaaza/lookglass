@@ -1,6 +1,6 @@
-# lookglass — monorepo
+# lookglass — open-source monorepo
 
-All-in-one, offline-capable file viewer for React and Next.js.
+Open-source, offline-capable file viewer for React and Next.js.
 
 - [`packages/lookglass`](packages/lookglass) — the published package ([docs](packages/lookglass/README.md))
 - [`examples/next-app`](examples/next-app) — offline playground, also the Playwright target

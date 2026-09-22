@@ -1,6 +1,6 @@
 # lookglass
 
-All-in-one, offline-capable file viewer for React and Next.js — built for files that are too big for the naive approach.
+Open-source, offline-capable file viewer for React and Next.js — built for files that are too big for the naive approach.
 
 > **Status: M4.** PDF, Word (DOCX), spreadsheets (XLSX, XLS, XLSB, ODS), CSV/TSV, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. PPTX lands in M5 — see [Roadmap](#roadmap).
 

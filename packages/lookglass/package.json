@@ -1,7 +1,7 @@
 {
   "name": "lookglass",
   "version": "0.1.0",
-  "description": "All-in-one, offline-capable file viewer for React and Next.js — PDF, DOCX, XLSX, CSV, PPTX, images, text, JSON, XML and Markdown, built for very large files.",
+  "description": "Open-source, offline-capable file viewer for React and Next.js — PDF, DOCX, XLSX, CSV, PPTX, images, text, JSON, XML and Markdown, built for very large files.",
   "license": "MIT",
   "type": "module",
   "sideEffects": [
