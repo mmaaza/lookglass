@@ -1,6 +1,6 @@
 # lookglass
 
-Open-source, offline-capable file viewer for React and Next.js — built for files that are too big for the naive approach.
+Lookglass is an open-source, offline-capable file viewer for React and Next.js. It previews PDF, DOCX, XLSX, CSV, PPTX, images, text, JSON, XML, and Markdown files with range-aware loading and offline caching.
 
 > **Status: M4.** PDF, Word (DOCX), spreadsheets (XLSX, XLS, XLSB, ODS), CSV/TSV, text, source code, images, SVG, JSON, JSON Lines, XML and Markdown are supported. PPTX lands in M5 — see [Roadmap](#roadmap).
 

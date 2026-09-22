@@ -2,7 +2,8 @@
   "name": "lookglass-monorepo",
   "private": true,
   "license": "MIT",
-  "description": "Open-source, offline-capable file viewer monorepo for React and Next.js.",
+  "description": "Lookglass is an open-source, offline-capable file viewer for React and Next.js.",
+  "keywords": ["lookglass", "file viewer", "react", "next.js", "offline", "pdf", "docx", "xlsx", "csv", "markdown"],
   "workspaces": ["packages/*", "examples/*"],
   "scripts": {
     "build": "npm run build -w lookglass",
