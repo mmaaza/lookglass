@@ -7,6 +7,9 @@ out/
 coverage/
 test-results/
 playwright-report/
+artifacts/
+packages/lookglass/LICENSE
+packages/lookglass/THIRD_PARTY_NOTICES.md
 examples/next-app/public/lookglass/
 examples/next-app/public/sw.js
 

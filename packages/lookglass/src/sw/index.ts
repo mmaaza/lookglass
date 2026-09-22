@@ -50,12 +50,35 @@ export interface LookglassSwConfig {
   navigationFallback?: boolean;
 }
 
+// Structural event types keep the public declarations usable in DOM projects
+// without loading lib.webworker alongside the conflicting lib.dom globals.
+export interface SwLifetimeEvent {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+export interface SwFetchEvent extends SwLifetimeEvent {
+  readonly request: Request;
+  respondWith(response: Response | PromiseLike<Response>): void;
+}
+
+export interface SwMessageEvent extends SwLifetimeEvent {
+  readonly data: unknown;
+  readonly ports: readonly MessagePort[];
+}
+
+export interface LookglassSwScope {
+  readonly clients: { claim(): Promise<void> };
+  addEventListener(type: 'install' | 'activate', listener: (event: SwLifetimeEvent) => void): void;
+  addEventListener(type: 'fetch', listener: (event: SwFetchEvent) => void): void;
+  addEventListener(type: 'message', listener: (event: SwMessageEvent) => void): void;
+}
+
 export interface LookglassRoutes {
-  onInstall(event: ExtendableEvent): void;
-  onActivate(event: ExtendableEvent): void;
+  onInstall(event: SwLifetimeEvent): void;
+  onActivate(event: SwLifetimeEvent): void;
   /** Returns true when lookglass handled the request. */
-  onFetch(event: FetchEvent): boolean;
-  onMessage(event: ExtendableMessageEvent): void;
+  onFetch(event: SwFetchEvent): boolean;
+  onMessage(event: SwMessageEvent): void;
 }
 
 const PRECACHE_PREFIX = 'lookglass-precache-';
@@ -257,7 +280,7 @@ export function createLookglassRoutes(config: LookglassSwConfig): LookglassRoute
 /** Attach the routes to a service worker scope. */
 export function registerLookglassSw(
   config: LookglassSwConfig,
-  scope: ServiceWorkerGlobalScope = self as unknown as ServiceWorkerGlobalScope,
+  scope: LookglassSwScope = self as unknown as LookglassSwScope,
 ): void {
   const routes = createLookglassRoutes(config);
   scope.addEventListener('install', (event) => routes.onInstall(event));

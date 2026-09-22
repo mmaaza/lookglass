@@ -17,7 +17,11 @@ import { expect, test } from '@playwright/test';
  */
 
 const CORPUS = 'fixtures/docx-corpus';
-const files = existsSync(CORPUS) ? readdirSync(CORPUS).filter((name) => name.toLowerCase().endsWith('.docx')) : [];
+// Word creates ~$*.docx owner/lock files beside open documents. They are not
+// OOXML packages and must not be treated as accuracy fixtures.
+const files = existsSync(CORPUS)
+  ? readdirSync(CORPUS).filter((name) => !name.startsWith('~$') && name.toLowerCase().endsWith('.docx'))
+  : [];
 
 interface Diagnostics {
   ours: string[];

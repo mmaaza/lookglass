@@ -199,7 +199,12 @@ export function createRpcClient<T extends RpcHandlers>(worker: Worker, label = '
  * Call once at the top of a worker module. Handlers receive an `RpcContext`
  * whose `signal` aborts when the caller cancels — long loops must check it.
  */
-export function exposeRpc(handlers: RpcHandlers, scope: DedicatedWorkerGlobalScope = self as never): void {
+export interface RpcWorkerScope {
+  addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+  postMessage(message: unknown, transfer?: Transferable[]): void;
+}
+
+export function exposeRpc(handlers: RpcHandlers, scope: RpcWorkerScope = self as never): void {
   const running = new Map<number, AbortController>();
 
   scope.addEventListener('message', async (event: MessageEvent<Inbound>) => {

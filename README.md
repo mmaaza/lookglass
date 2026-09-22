@@ -29,7 +29,7 @@ Memory use still depends on the format. Workbooks are read whole into a worker. 
 
 ## Run the playground
 
-Requirements: Node.js **20.11 or later**, npm, and a modern browser. The example uses Next.js 15 and React 19; the library accepts React and React DOM 18.2 or 19.
+Requirements: Node.js **22.13 or later**, npm, and a modern browser. The example uses Next.js 15 and React 19; the library accepts React and React DOM 18.2 or 19.
 
 ```bash
 git clone https://github.com/mmaaza/lookglass.git
@@ -169,5 +169,7 @@ The optional DOCX accuracy corpus belongs in `fixtures/docx-corpus/`. It is excl
 For bug reports, include browser and OS, format and approximate size, reproduction steps, expected and actual behavior, and a minimal shareable sample when possible.
 
 ## License
+
+Maintainers: see the [release guide](RELEASING.md) for tarball validation and npm publication instructions.
 
 Lookglass uses the [MIT License](LICENSE). Third-party dependencies retain their own licenses. Vendored SheetJS Community Edition 0.20.3 uses [Apache-2.0](packages/lookglass/vendor/sheetjs/LICENSE); see its [provenance](packages/lookglass/vendor/sheetjs/VENDOR.md).

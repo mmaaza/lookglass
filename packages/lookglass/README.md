@@ -9,6 +9,8 @@ npm install lookglass
 npx lookglass-copy-assets --sw
 ```
 
+Requires Node.js 22.13 or later and React/React DOM 18.2 or 19. This package is ESM-only. Create the consuming app's `public` directory before copying assets, or pass `--public <directory>`.
+
 ```tsx
 'use client';
 import { FileViewer } from 'lookglass/react';
@@ -185,7 +187,7 @@ The default remains `docx-preview`. An initial native engine parses and lays out
 />
 ```
 
-The size options described above apply to the default renderer; the native path currently accepts `maxXmlBytes`. See the [repository roadmap](../../README.md#roadmap) for the engine milestones.
+The size options described above apply to the default renderer; the native path currently accepts `maxXmlBytes`. See the [repository roadmap](https://github.com/mmaaza/lookglass#roadmap) for the engine milestones.
 
 ### Spreadsheets
 
@@ -267,7 +269,7 @@ M0–M4 delivered the initial core, structured formats, PDF, spreadsheets, and d
 | O5: PPTX | Planned; no renderer yet |
 | O6: advanced OOXML | Charts, equations, tracked changes, and RTL improvements planned |
 
-Accessibility, cross-browser testing, malformed-file coverage, performance checks, and documentation remain part of release hardening. See the [full roadmap and contributor guide](../../README.md) for current scope and development instructions.
+Accessibility, cross-browser testing, malformed-file coverage, performance checks, and documentation remain part of release hardening. See the [full roadmap and contributor guide](https://github.com/mmaaza/lookglass#readme) for current scope and development instructions.
 
 ## Development
 
@@ -284,4 +286,4 @@ The Playwright suite is the real acceptance test: it warms the cache, calls `con
 
 ## License
 
-MIT
+See [LICENSE](LICENSE) for the MIT license and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for code bundled from third-party dependencies. Vendored SheetJS retains its [Apache-2.0 license](vendor/sheetjs/LICENSE).
