@@ -91,7 +91,9 @@ export type Inline =
   | { kind: 'break'; type: 'line' | 'page' | 'column'; props: RunProps }
   | { kind: 'image'; props: RunProps; drawing: Drawing; link?: string }
   | { kind: 'field'; field: 'PAGE' | 'NUMPAGES' | 'SECTIONPAGES'; format?: string; props: RunProps }
-  | { kind: 'noteRef'; note: 'footnote' | 'endnote'; id: string; props: RunProps }
+  | { kind: 'noteRef'; note: 'footnote' | 'endnote'; id: string; number: string; props: RunProps }
+  /** The note's own number, at the start of the note text. */
+  | { kind: 'noteNumber'; props: RunProps }
   /** Word wrote a page break here when it last laid out the file. Used for accuracy checks. */
   | { kind: 'renderedBreak' }
   | { kind: 'bookmark'; name: string };
@@ -203,6 +205,13 @@ export interface WordDocument {
   /** Final section properties (the body's own `w:sectPr`). */
   finalSection: SectionProps;
   headers: Map<string, Block[]>;
+  /** Note text by id, in the order their references appear. */
+  footnotes: Map<string, Block[]>;
+  endnotes: Map<string, Block[]>;
+  /** Note references in the order they appear, with the number each was given. */
+  noteRefs: Array<{ type: 'footnote' | 'endnote'; id: string; number: string }>;
+  /** The rule Word draws above footnotes. */
+  noteSeparator?: Block[];
   settings: { defaultTabStop: number; evenAndOddHeaders: boolean; compatibilityMode: number };
   title?: string;
   author?: string;

@@ -47,6 +47,8 @@ export interface TextAtom {
   spaces: number;
   /** A line may break after this atom. */
   breakAfter: boolean;
+  /** The note whose reference this text is, so layout can place the note. */
+  note?: { type: 'footnote' | 'endnote'; id: string };
   /** Raise (+) or lower (-) the baseline, px. */
   shift: number;
   letterSpacing: number;
@@ -118,7 +120,7 @@ export function displayText(text: string, props: RunProps): string {
   return props.caps || props.smallCaps ? text.toUpperCase() : text;
 }
 
-export function buildAtoms(paragraph: Paragraph, fonts: FontService): Atom[] {
+export function buildAtoms(paragraph: Paragraph, fonts: FontService, noteNumber?: string): Atom[] {
   const atoms: Atom[] = [];
   const markSlot: Slot = 'ascii';
   if (paragraph.label) {
@@ -127,11 +129,11 @@ export function buildAtoms(paragraph: Paragraph, fonts: FontService): Atom[] {
     if (suffix === 'tab') atoms.push({ k: 'tab', props, font: fonts.font(props, markSlot), label: true });
     else if (suffix === 'space') pushText(atoms, ' ', props, fonts, undefined, true);
   }
-  for (const inline of paragraph.inlines) pushInline(atoms, inline, fonts);
+  for (const inline of paragraph.inlines) pushInline(atoms, inline, fonts, noteNumber);
   return atoms;
 }
 
-function pushInline(atoms: Atom[], inline: Inline, fonts: FontService): void {
+function pushInline(atoms: Atom[], inline: Inline, fonts: FontService, noteNumber?: string): void {
   switch (inline.kind) {
     case 'text':
       pushText(atoms, inline.text, inline.props, fonts, inline.link, false);
@@ -152,9 +154,16 @@ function pushInline(atoms: Atom[], inline: Inline, fonts: FontService): void {
     case 'field':
       atoms.push({ k: 'field', field: inline.field, format: inline.format, props: inline.props, font: fonts.font(inline.props, 'ascii') });
       break;
-    case 'noteRef':
-      // Numbered in O2 with the notes themselves; a superscript mark keeps the place.
-      pushText(atoms, '*', inline.props, fonts, undefined, false);
+    case 'noteRef': {
+      // The reference mark carries the note, so layout can put the note on this page.
+      const before = atoms.length;
+      pushText(atoms, inline.number || '*', inline.props, fonts, undefined, true);
+      const mark = atoms[before];
+      if (mark?.k === 'text') mark.note = { type: inline.note, id: inline.id };
+      break;
+    }
+    case 'noteNumber':
+      if (noteNumber) pushText(atoms, noteNumber, inline.props, fonts, undefined, true);
       break;
     case 'renderedBreak':
       atoms.push({ k: 'marker', renderedBreak: true });
@@ -291,6 +300,16 @@ export class LineBreaker {
     this.atoms = atoms;
     this.paragraph = paragraph;
     this.context = context;
+  }
+
+  /** Position in the atom stream, so a line can be laid out again. */
+  mark(): { index: number; lineCount: number } {
+    return { index: this.index, lineCount: this.lineCount };
+  }
+
+  reset(mark: { index: number; lineCount: number }): void {
+    this.index = mark.index;
+    this.lineCount = mark.lineCount;
   }
 
   get done(): boolean {

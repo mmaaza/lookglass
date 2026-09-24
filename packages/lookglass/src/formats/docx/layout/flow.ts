@@ -56,6 +56,20 @@ export interface FlowHooks {
   nextArea?(reason: 'overflow' | 'page' | 'column'): { area: Area; items: DisplayItem[]; floats: DisplayItem[]; page: PageGeometry };
   onLine?(line: Line, pageTop: boolean): void;
   onBlockStart?(): void;
+  /**
+   * Footnotes on the page the referring line lands on. `measure` returns the
+   * extra height they would take (including the separator rule, the first
+   * time); `commit` reserves it at the bottom of the page.
+   */
+  notes?: {
+    measure(refs: NoteRef[]): number;
+    commit(refs: NoteRef[]): void;
+  };
+}
+
+export interface NoteRef {
+  type: 'footnote' | 'endnote';
+  id: string;
 }
 
 interface FloatBox {
@@ -137,7 +151,7 @@ export class Flow {
       this.resolvePendingBreak();
     }
     const props = paragraph.props;
-    const atoms = buildAtoms(paragraph, this.env.fonts);
+    const atoms = buildAtoms(paragraph, this.env.fonts, this.noteNumber);
     const context = this.lineContext(paragraph, atoms);
 
     if (this.paged && props.pageBreakBefore && !this.atAreaTop) this.breakTo('page');
@@ -219,7 +233,25 @@ export class Flow {
       const estimate = heights[index] ?? heights[heights.length - 1] ?? 0;
       // Wrap around floating pictures on this page.
       this.skipTopAndBottomFloats(estimate);
+      const mark = breaker.mark();
       const line = breaker.next(this.boundsFor(breaker, estimate));
+
+      // A footnote sits at the bottom of the page its reference is on, so the
+      // line only fits if its notes fit under it too.
+      const noteRefs = notesOf(line);
+      if (this.paged && this.hooks.notes && noteRefs.length > 0) {
+        const extra = this.hooks.notes.measure(noteRefs);
+        if (this.y + line.height + extra > this.area.bottom + EPSILON && !this.atAreaTop) {
+          breaker.reset(mark);
+          flushSegment();
+          this.breakTo('overflow');
+          segmentTop = this.y;
+          allowed = undefined;
+          continue;
+        }
+        this.hooks.notes.commit(noteRefs);
+      }
+
       const lineTop = this.y;
       this.hooks.onLine?.(line, lineTop <= this.area.top + EPSILON);
       paintLine(line, { x: this.area.left, top: lineTop, align: props.align, fields: this.env.fields, context, order: this.order }, this.items, (atom, x, y) =>
@@ -433,6 +465,9 @@ export class Flow {
    * Tables
    * ---------------------------------------------------------------- */
 
+  /** Number of the note being laid out, for the mark at its start. */
+  noteNumber: string | undefined;
+
   /** A page or column break waiting for the next content. */
   pendingBreak: 'page' | 'column' | undefined;
 
@@ -442,10 +477,45 @@ export class Flow {
     if (pending) this.breakTo(pending);
   }
 
+  /**
+   * Word's auto-fit: start from the stored widths, widen any column too
+   * narrow for its longest unbreakable word, and take that space from the
+   * columns with room to spare. Word breaks a word inside a cell only when
+   * no neighbouring column can give way.
+   */
+  private autofitColumns(table: Table): number[] {
+    const columns = table.grid.map(twip);
+    const mins = columns.map(() => 0);
+    for (const row of table.rows) {
+      let col = 0;
+      for (const cell of row.cells) {
+        const span = Math.max(1, cell.props.gridSpan);
+        if (span === 1 && col < mins.length && cell.props.vMerge !== 'continue') {
+          const margins = twip((cell.props.margins.left ?? table.cellMargins.left) + (cell.props.margins.right ?? table.cellMargins.right));
+          mins[col] = Math.max(mins[col]!, Math.ceil(minContentWidth(cell.blocks, this.env.fonts) + margins));
+        }
+        col += span;
+      }
+    }
+    let deficit = 0;
+    columns.forEach((width, index) => {
+      if (width < mins[index]!) {
+        deficit += mins[index]! - width;
+        columns[index] = mins[index]!;
+      }
+    });
+    if (deficit <= 0) return columns;
+    const slack = columns.map((width, index) => Math.max(0, width - mins[index]!));
+    const totalSlack = slack.reduce((sum, value) => sum + value, 0);
+    if (totalSlack <= 0) return columns;
+    const take = Math.min(deficit, totalSlack);
+    return columns.map((width, index) => width - (take * slack[index]!) / totalSlack);
+  }
+
   placeTable(table: Table): void {
     this.resolvePendingBreak();
     this.lastAfter = 0;
-    const columns = table.grid.map(twip);
+    const columns = table.fixedLayout ? table.grid.map(twip) : this.autofitColumns(table);
     const tableWidth = columns.reduce((sum, width) => sum + width, 0);
     let left = this.area.left + twip(table.indent);
     if (table.align === 'center') left = this.area.left + (this.area.width - tableWidth) / 2;
@@ -651,6 +721,38 @@ function itemBottom(item: DisplayItem): number {
     case 'image':
       return item.y + item.h;
   }
+}
+
+/** Width of the widest thing in these blocks that cannot be broken across lines. */
+function minContentWidth(blocks: Block[], fonts: FlowEnv['fonts']): number {
+  let widest = 0;
+  for (const block of blocks) {
+    if (block.kind !== 'p') continue;
+    const indent = twip(Math.max(0, block.props.indentLeft) + Math.max(0, block.props.indentRight));
+    let run = 0;
+    for (const atom of buildAtoms(block, fonts)) {
+      if (atom.k === 'text') {
+        run += atom.width - atom.trailing;
+        widest = Math.max(widest, run + indent);
+        run = atom.breakAfter ? 0 : run + atom.trailing;
+      } else if (atom.k === 'image') {
+        widest = Math.max(widest, atom.width + indent);
+        run = 0;
+      } else {
+        run = 0;
+      }
+    }
+  }
+  return widest;
+}
+
+/** The notes referenced by text on a line. */
+function notesOf(line: Line): NoteRef[] {
+  const refs: NoteRef[] = [];
+  for (const placed of line.placed) {
+    if (placed.atom.k === 'text' && placed.atom.note) refs.push(placed.atom.note);
+  }
+  return refs;
 }
 
 function isEmptyParagraph(paragraph: Paragraph): boolean {

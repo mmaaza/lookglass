@@ -106,6 +106,37 @@ describe('Word layout engine', () => {
     expect(footerText(1)).toContain('Page 1 of 2');
   });
 
+  it('widens an auto-fit column that is too narrow for its longest word', async () => {
+    // Column 1 is stored at 40 px but holds an 88 px word; column 2 has room to spare.
+    const table = (extra = '') =>
+      `<w:tbl><w:tblPr>${extra}</w:tblPr><w:tblGrid><w:gridCol w:w="600"/><w:gridCol w:w="8400"/></w:tblGrid>` +
+      `<w:tr><w:tc>${para('Performance')}</w:tc><w:tc>${para('Short')}</w:tc></w:tr></w:tbl>`;
+    const cell = (layout: ReturnType<typeof layoutOf>) =>
+      layout.display(0).items.filter((item) => item.t === 'text' && item.text === 'Performance');
+
+    const auto = cell(layoutOf((await docx(table() + sectPr())).document));
+    // One piece of text: the word was not broken across lines.
+    expect(auto).toHaveLength(1);
+    expect(auto[0]!.t === 'text' && auto[0]!.width).toBeCloseTo(88, 0);
+
+    // A fixed-layout table keeps the stored widths, so the word does break.
+    const fixed = cell(layoutOf((await docx(table('<w:tblLayout w:type="fixed"/>') + sectPr())).document));
+    expect(fixed).toHaveLength(0);
+  });
+
+  it('takes auto-fit column widths from the cells when the stored grid is stale', async () => {
+    const body =
+      '<w:tbl><w:tblGrid><w:gridCol w:w="4500"/><w:gridCol w:w="4500"/></w:tblGrid>' +
+      `<w:tr><w:tc><w:tcPr><w:tcW w:w="1500" w:type="dxa"/></w:tcPr>${para('A')}</w:tc>` +
+      `<w:tc><w:tcPr><w:tcW w:w="7500" w:type="dxa"/></w:tcPr>${para('B')}</w:tc></w:tr></w:tbl>${sectPr()}`;
+    const layout = layoutOf((await docx(body)).document);
+    const [a, b] = layout.display(0).items.filter((item) => item.t === 'text');
+    // Column 1 is 1500 twips (100 px) wide, not the 4500 the stale grid claims,
+    // so the second cell's text starts 100 px in. Text sits after the 7.2 px cell margin.
+    expect(a!.t === 'text' && a!.x).toBeCloseTo(103.2, 1);
+    expect(b!.t === 'text' && b!.x).toBeCloseTo(203.2, 1);
+  });
+
   it('splits a tall table row across pages', async () => {
     const cellText = Array.from({ length: 80 }, (_, i) => para(`cell line ${i + 1}`)).join('');
     const body = `${para('Intro')}<w:tbl><w:tblGrid><w:gridCol w:w="9000"/></w:tblGrid><w:tr><w:tc>${cellText}</w:tc></w:tr></w:tbl>${sectPr()}`;
@@ -115,6 +146,64 @@ describe('Word layout engine', () => {
     const firstPageText = layout.text(0).text;
     expect(firstPageText).toContain('cell line 1 ');
     expect(layout.text(1).text).toContain('cell line 80');
+  });
+});
+
+describe('footnotes and endnotes', () => {
+  const noteRef = (id: number, type: 'footnote' | 'endnote' = 'footnote') =>
+    `<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:${type}Reference w:id="${id}"/></w:r>`;
+  const notesPart = (type: 'footnote' | 'endnote', notes: Array<[number, string]>) =>
+    `<w:${type}s ${W}><w:${type} w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:${type}>` +
+    notes
+      .map(([id, text]) => `<w:${type} w:id="${id}"><w:p><w:r><w:${type}Ref/></w:r><w:r><w:t xml:space="preserve"> ${text}</w:t></w:r></w:p></w:${type}>`)
+      .join('') +
+    `</w:${type}s>`;
+
+  it('numbers footnotes in reference order and puts them at the bottom of the page', async () => {
+    const body =
+      `<w:p><w:r><w:t>First</w:t></w:r>${noteRef(7)}</w:p>` +
+      `<w:p><w:r><w:t>Second</w:t></w:r>${noteRef(3)}</w:p>` +
+      sectPr();
+    // Stored out of order on purpose: numbering follows the references, not the ids.
+    const parsed = await docx(body, { 'footnotes.xml': notesPart('footnote', [[3, 'note about second'], [7, 'note about first']]) });
+    const layout = layoutOf(parsed.document);
+    expect(layout.pages).toHaveLength(1);
+    const items = layout.display(0).items.filter((item) => item.t === 'text');
+    // Two reference marks in the text; each note starts with its own number.
+    const marks = items.filter((item) => item.t === 'text' && (item.text === '1' || item.text === '2'));
+    expect(marks).toHaveLength(2);
+    const noteText = items.find((item) => item.t === 'text' && item.text.includes('note about first'))!;
+    const bodyText = items.find((item) => item.t === 'text' && item.text === 'First')!;
+    // The note is at the foot of the page, far below the paragraph it belongs to.
+    expect(noteText.t === 'text' && noteText.y).toBeGreaterThan(bodyText.t === 'text' ? bodyText.y + 500 : 0);
+    // Numbering follows reference order: id 7 is note 1.
+    const firstNote = items.find((item) => item.t === 'text' && item.text.includes('note about first'))!;
+    expect(firstNote.t === 'text' && firstNote.text.trim().startsWith('1')).toBe(true);
+  });
+
+  it('moves a line to the next page when its footnote no longer fits', async () => {
+    const note = 'note '.repeat(200).trim();
+    const body =
+      Array.from({ length: 40 }, (_, i) => para(`Line ${i + 1}`)).join('') +
+      `<w:p><w:r><w:t>Referring line</w:t></w:r>${noteRef(2)}</w:p>` +
+      sectPr();
+    const layout = layoutOf((await docx(body, { 'footnotes.xml': notesPart('footnote', [[2, note]]) })).document);
+    // Without the note the line would fit on page 1; the note is ~8 lines tall.
+    expect(layout.pages).toHaveLength(2);
+    expect(layout.pageStarts[1]).toBe('Referring line1');
+    expect(layout.text(1).text).toContain('note note');
+  });
+
+  it('collects endnotes at the end of the document', async () => {
+    const body = `<w:p><w:r><w:t>Body</w:t></w:r>${noteRef(4, 'endnote')}</w:p>${sectPr()}`;
+    const layout = layoutOf((await docx(body, { 'endnotes.xml': notesPart('endnote', [[4, 'the endnote']]) })).document);
+    expect(layout.pages).toHaveLength(1);
+    const items = layout.display(0).items.filter((item) => item.t === 'text');
+    const endnote = items.find((item) => item.t === 'text' && item.text.includes('the endnote'))!;
+    const bodyText = items.find((item) => item.t === 'text' && item.text === 'Body')!;
+    // Endnotes follow the body text rather than sitting at the page foot.
+    expect(endnote.t === 'text' && endnote.y).toBeGreaterThan(bodyText.t === 'text' ? bodyText.y : 0);
+    expect(endnote.t === 'text' && endnote.y).toBeLessThan(200);
   });
 });
 

@@ -17,7 +17,7 @@ import type {
   TableRow,
   WordDocument,
 } from './model.js';
-import { Numbering } from './numbering.js';
+import { Numbering, formatNumber } from './numbering.js';
 import { StyleSheet, finalParaProps, mergePPr, mergeRPr, parseBorder, parsePPr, parseRPr, shadingFill, type PPr, type RPr } from './styles.js';
 
 /**
@@ -78,7 +78,25 @@ export async function parseWordDocument(pkg: OoxmlPackage, signal?: AbortSignal)
   };
 
   const unsupported: Record<string, number> = {};
-  const context: ParseContext = { styles, numbering, theme, unsupported, rels, headings: [], bookmarks: new Map(), blockIndex: 0 };
+  const noteFormat = (name: string) => ({
+    format: val(child(settingsRoot, name), 'w:numFmt') ?? 'decimal',
+    start: intAttr(child(child(settingsRoot, name), 'w:numStart'), 'w:val') ?? 1,
+  });
+  const context: ParseContext = {
+    styles,
+    numbering,
+    theme,
+    unsupported,
+    rels,
+    headings: [],
+    bookmarks: new Map(),
+    blockIndex: 0,
+    noteRefs: [],
+    notes: {
+      footnote: { ...noteFormat('w:footnotePr'), next: noteFormat('w:footnotePr').start },
+      endnote: { ...noteFormat('w:endnotePr'), next: noteFormat('w:endnotePr').start },
+    },
+  };
 
   const root = await pkg.xml(main, signal);
   const body = child(root, 'w:body');
@@ -100,6 +118,31 @@ export async function parseWordDocument(pkg: OoxmlPackage, signal?: AbortSignal)
     headers.set(id, parseBlocks(headerRoot, { ...context, rels: partRels, headings: [], bookmarks: new Map(), blockIndex: 0 }, undefined, false));
   }
 
+  // Footnotes and endnotes. Parsed after the body, because their numbers come
+  // from the order their references appear in it.
+  const footnotes = new Map<string, Block[]>();
+  const endnotes = new Map<string, Block[]>();
+  let noteSeparator: Block[] | undefined;
+  for (const [type, target] of [
+    ['footnote', partOf('footnotes')],
+    ['endnote', partOf('endnotes')],
+  ] as const) {
+    if (!target || !pkg.has(target)) continue;
+    const partRels = await pkg.rels(target, signal);
+    const noteRoot = await pkg.xml(target, signal);
+    const into = type === 'footnote' ? footnotes : endnotes;
+    for (const note of children(noteRoot, `w:${type}`)) {
+      const id = note.attrs['w:id'];
+      if (id === undefined) continue;
+      const kind = note.attrs['w:type'];
+      // Separators and continuation notices are not notes; the first separator
+      // is the rule drawn above them.
+      const noteContext = { ...context, rels: partRels, headings: [], bookmarks: new Map<string, number>(), blockIndex: 0 };
+      if (kind === 'separator') noteSeparator ??= parseBlocks(note, noteContext, undefined, false);
+      else if (!kind) into.set(id, parseBlocks(note, noteContext, undefined, false));
+    }
+  }
+
   const core = await pkg.xmlIfPresent((await pkg.relatedPart('/', 'core-properties', signal)) ?? '/docProps/core.xml', signal);
 
   return {
@@ -107,6 +150,10 @@ export async function parseWordDocument(pkg: OoxmlPackage, signal?: AbortSignal)
       body: blocks,
       finalSection,
       headers,
+      footnotes,
+      endnotes,
+      noteRefs: context.noteRefs,
+      noteSeparator,
       settings,
       title: textContent(child(core, 'dc:title')).trim() || undefined,
       author: textContent(child(core, 'dc:creator')).trim() || undefined,
@@ -128,6 +175,9 @@ interface ParseContext {
   rels: Map<string, Relationship>;
   headings: WordDocument['headings'];
   bookmarks: Map<string, number>;
+  noteRefs: WordDocument['noteRefs'];
+  /** Note numbering, counted in the order references appear. */
+  notes: Record<'footnote' | 'endnote', { format: string; start: number; next: number }>;
   /** Index of the top-level body block being parsed. */
   blockIndex: number;
 }
@@ -420,13 +470,21 @@ function parseRun(node: XmlElement, out: Inline[], context: ParseContext, run: (
         out.push({ kind: 'renderedBreak' });
         break;
       case 'w:footnoteReference':
-      case 'w:endnoteReference':
-        out.push({
-          kind: 'noteRef',
-          note: item.name === 'w:footnoteReference' ? 'footnote' : 'endnote',
-          id: item.attrs['w:id'] ?? '',
-          props: get(),
-        });
+      case 'w:endnoteReference': {
+        // Notes are numbered in the order their references appear, which is
+        // not always the order they are stored in.
+        const note = item.name === 'w:footnoteReference' ? 'footnote' : 'endnote';
+        const counter = context.notes[note];
+        const custom = item.attrs['w:customMarkFollows'] === '1';
+        const number = custom ? '' : formatNumber(counter.next++, counter.format);
+        const noteId = item.attrs['w:id'] ?? '';
+        context.noteRefs.push({ type: note, id: noteId, number });
+        out.push({ kind: 'noteRef', note, id: noteId, number, props: get() });
+        break;
+      }
+      case 'w:footnoteRef':
+      case 'w:endnoteRef':
+        out.push({ kind: 'noteNumber', props: get() });
         break;
       case 'w:drawing': {
         const drawing = parseDrawing(item, context);

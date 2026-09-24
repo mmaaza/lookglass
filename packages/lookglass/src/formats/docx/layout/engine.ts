@@ -36,6 +36,10 @@ interface PageRecord {
   behind: DisplayItem[];
   front: DisplayItem[];
   bodyTop: number;
+  /** Footnotes reserved at the bottom of this page. */
+  notes: Array<{ items: DisplayItem[]; height: number }>;
+  noteIds: Set<string>;
+  notesHeight: number;
   bodyBottom: number;
 }
 
@@ -84,6 +88,9 @@ export class DocxFontService implements FontService {
   }
 }
 
+/** Height of the rule above footnotes, and the space around it. */
+const SEPARATOR_HEIGHT = 10;
+
 export class DocxLayout {
   readonly pages: PageRecord[] = [];
   readonly accuracy: LayoutAccuracy = { wordBreaks: 0, matched: 0 };
@@ -101,11 +108,14 @@ export class DocxLayout {
   private column = 0;
   private pageNumber = 0;
   private pendingBlock = -1;
+  private readonly noteLayouts = new Map<string, { items: DisplayItem[]; height: number }>();
+  private readonly noteNumbers = new Map<string, string>();
 
   constructor(doc: WordDocument, fonts: FontService) {
     this.doc = doc;
     this.fonts = fonts;
     this.sections = splitSections(doc);
+    for (const ref of doc.noteRefs) this.noteNumbers.set(`${ref.type}:${ref.id}`, ref.number);
   }
 
   /** Lay out the whole document, yielding after each top-level block. */
@@ -125,6 +135,19 @@ export class DocxLayout {
         if (this.blockPages[index] === undefined) this.blockPages[index] = this.pages.length - 1;
         yield this.pages.length;
       }
+    }
+    // Endnotes follow the body, numbered in the order they were referenced.
+    for (const ref of this.doc.noteRefs) {
+      if (ref.type !== 'endnote') continue;
+      const blocks = this.doc.endnotes.get(ref.id);
+      if (!blocks || blocks.length === 0) continue;
+      this.flow.noteNumber = ref.number;
+      blocks.forEach((block, index) => {
+        if (block.kind === 'p') this.flow.placeParagraph(block, blocks[index + 1]);
+        else this.flow.placeTable(block);
+      });
+      this.flow.noteNumber = undefined;
+      yield this.pages.length;
     }
     this.finishPage();
     this.done = true;
@@ -251,6 +274,9 @@ export class DocxLayout {
       body: [],
       behind: [],
       front: [],
+      notes: [],
+      noteIds: new Set(),
+      notesHeight: 0,
       bodyTop: geometry.marginTop,
       bodyBottom: geometry.height - geometry.marginBottom,
     };
@@ -290,6 +316,34 @@ export class DocxLayout {
             this.pendingBlock = -1;
           }
         },
+        notes: {
+          measure: (refs) => {
+            const current = this.pages[this.pages.length - 1]!;
+            let height = current.notes.length === 0 ? SEPARATOR_HEIGHT : 0;
+            for (const ref of refs) {
+              if (ref.type !== 'footnote' || current.noteIds.has(ref.id)) continue;
+              height += this.noteLayout(ref.type, ref.id).height;
+            }
+            return height;
+          },
+          commit: (refs) => {
+            const current = this.pages[this.pages.length - 1]!;
+            let reserved = 0;
+            for (const ref of refs) {
+              if (ref.type !== 'footnote' || current.noteIds.has(ref.id)) continue;
+              if (current.notes.length === 0) reserved += SEPARATOR_HEIGHT;
+              const note = this.noteLayout(ref.type, ref.id);
+              current.noteIds.add(ref.id);
+              current.notes.push(note);
+              reserved += note.height;
+            }
+            if (reserved > 0) {
+              current.notesHeight += reserved;
+              // The body ends above the notes from here on.
+              this.flow.area = { ...this.flow.area, bottom: this.flow.area.bottom - reserved };
+            }
+          },
+        },
       }, page.front);
     } else {
       this.flow.area = area;
@@ -300,9 +354,46 @@ export class DocxLayout {
     }
   }
 
+  /** Lay out a note's text once, at the column width; cached by id. */
+  private noteLayout(type: 'footnote' | 'endnote', id: string): { items: DisplayItem[]; height: number } {
+    const key = `${type}:${id}`;
+    const cached = this.noteLayouts.get(key);
+    if (cached) return cached;
+    const blocks = (type === 'footnote' ? this.doc.footnotes : this.doc.endnotes).get(id) ?? [];
+    const items: DisplayItem[] = [];
+    const page = this.pages[this.pages.length - 1]!;
+    const flow = new Flow(this.env(), { left: 0, width: this.flow.area.width, top: 0, bottom: Number.POSITIVE_INFINITY }, page.geometry, items);
+    flow.noteNumber = this.noteNumbers.get(key);
+    const height = flow.placeAll(blocks);
+    const layout = { items, height };
+    this.noteLayouts.set(key, layout);
+    return layout;
+  }
+
+  /** Footnotes sit at the bottom of their page, under a short rule. */
+  private paintNotes(page: PageRecord): void {
+    if (page.notes.length === 0) return;
+    let y = page.bodyBottom - page.notesHeight;
+    page.body.push({
+      t: 'line',
+      x1: page.geometry.marginLeft,
+      y1: y + SEPARATOR_HEIGHT / 2,
+      x2: page.geometry.marginLeft + 144,
+      y2: y + SEPARATOR_HEIGHT / 2,
+      width: 0.75,
+      color: '#000000',
+    });
+    y += SEPARATOR_HEIGHT;
+    for (const note of page.notes) {
+      for (const item of note.items) page.body.push(offsetItem(item, page.geometry.marginLeft, y));
+      y += note.height;
+    }
+  }
+
   private finishPage(): void {
     const page = this.pages[this.pages.length - 1];
     if (!page || !this.flow) return;
+    this.paintNotes(page);
     const section = this.sections[page.section]!.props;
     if (section.vAlign === 'center' || section.vAlign === 'bottom') {
       const contentBottom = this.flow.y;
