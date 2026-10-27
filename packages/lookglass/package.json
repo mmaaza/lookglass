@@ -1,6 +1,6 @@
 {
   "name": "lookglass",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Offline-capable React and Next.js file viewer for PDF, DOCX, spreadsheets, images, code, and structured data, with large-file handling.",
   "license": "MIT",
   "homepage": "https://github.com/mmaaza/lookglass#readme",
