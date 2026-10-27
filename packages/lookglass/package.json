@@ -29,6 +29,7 @@
     "bin",
     "tools/precache-plugin.mjs",
     "README.md",
+    "INTEGRATION.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "vendor/sheetjs/LICENSE",

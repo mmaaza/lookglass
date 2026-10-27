@@ -25,6 +25,19 @@ export function Preview({ file }: { file: File }) {
 
 ---
 
+## Using lookglass in another project (AI agents)
+
+Humans and AI coding agents integrating lookglass into an app should follow **[INTEGRATION.md](INTEGRATION.md)** (shipped in the package at `node_modules/lookglass/INTEGRATION.md`). It is a step-by-step checklist: install, `npx lookglass-copy-assets`, a minimal `'use client'` component, range-capable file serving, offline setup, supported formats, and the common pitfalls (missing assets, zero-height container, Server Component imports, CSP).
+
+Quick version for an agent:
+
+1. `npm install lookglass && npx lookglass-copy-assets --sw`
+2. Render `<FileViewer source={fileOrUrl} />` from `lookglass/react` inside a client component whose parent has a fixed height, and import `lookglass/styles.css`.
+3. Serve remote files with `Range` support (`createFileRangeHandler` from `lookglass/server`).
+4. Types live in `node_modules/lookglass/dist/**/*.d.ts`; read them instead of guessing prop names.
+
+---
+
 ## Why this exists
 
 Most file viewers work fine on the 2 MB PDF in the demo and fall over on the 800 MB one in production. lookglass is designed around four constraints that only show up at scale:

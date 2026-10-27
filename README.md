@@ -89,6 +89,10 @@ Application assets use the Cache API; document bytes use the Origin Private File
 
 Service workers and OPFS require browser support and a secure context such as HTTPS or localhost. Offline availability also depends on the browser retaining cached data. See the [offline guide](packages/lookglass/README.md#offline).
 
+### Integrating from another project (AI agents)
+
+AI coding agents and developers adding Lookglass to another app should follow [packages/lookglass/INTEGRATION.md](packages/lookglass/INTEGRATION.md). It is also published inside the npm package as `node_modules/lookglass/INTEGRATION.md`.
+
 ## Current limits
 
 - **PPTX:** no renderer yet. Format detection does not imply rendering support.
